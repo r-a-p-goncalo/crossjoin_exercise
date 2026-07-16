@@ -3,11 +3,36 @@ from datetime import datetime
 import os
 import re
 
+OUTPUT_DIRECTORY = "data\\interpreted"
 
-THREAD_DUMP_ROWS = ["service_name", "service_role", "kubernetes_hash", "pod_suffix", "timestamp",
+GENERAL_THREAD_DUMP_NAME = "thread_dump_headers"
+GENERAL_THREAD_DUMP_ROWS_BASIC = ["service_name", "service_role", "kubernetes_hash", "pod_suffix", "timestamp"]
+
+GENERAL_THREAD_DUMP_ROWS = [*GENERAL_THREAD_DUMP_ROWS_BASIC,
                     "thread_count"]
 
-CUSTOM_CALL_NAMES = []
+TRHEAD_SPECIFIC_DUMP_NAME = "thread_specific"
+THREAD_SPECIFIC_DUMP_ROWS = [*GENERAL_THREAD_DUMP_ROWS_BASIC,
+                             "thread_name", "status", "cpu_ms", "time_elapsed_ms", "last_call", "last_custom_call"]
+
+CUSTOM_CALL_PREFIXES = (
+    "com.crossjoin",
+    "pt.crossjoin",
+    "com.company",
+     "com.crossjointest."
+)
+
+def is_custom_call(function_name: str) -> bool:
+    """
+    Returns True if any package, class or method component
+    contains the word 'tuxedo' (case-insensitive).
+    """
+
+    return function_name.startswith(CUSTOM_CALL_PREFIXES) or any(
+        "tuxedo" in part.lower()
+        for part in function_name.split(".")
+    )
+
 
 def print_threads(thread_specific_texts):
     for i, thread in enumerate(thread_specific_texts):
@@ -60,6 +85,80 @@ def interpret_single_thread_info(thread_dump_specific_text : str) -> dict:
     Returns a row for the thread text received
     '''
 
+    info = {}
+
+    match = re.search(r'^"([^"]+)"', thread_dump_specific_text)
+
+    info["thread_name"] = (
+        match.group(1)
+        if match
+        else None
+    )
+
+    match = re.search(
+        r"java\.lang\.Thread\.State:\s+([A-Z_]+)",
+        thread_dump_specific_text
+    )
+
+    info["status"] = (
+        match.group(1)
+        if match
+        else None
+    )
+
+    match = re.search(
+        r"\bcpu=(\d+(?:\.\d+)?)ms",
+        thread_dump_specific_text
+    )
+
+    info["cpu_ms"] = (
+        float(match.group(1))
+        if match
+        else None
+    )
+
+    match = re.search(
+        r"\belapsed=(\d+(?:\.\d+)?)s",
+        thread_dump_specific_text
+    )
+
+    if match:
+        info["time_elapsed_ms"] = int(
+            float(match.group(1)) * 1000
+        )
+    else:
+        info["time_elapsed_ms"] = None
+
+    #
+    # Stack trace
+    #
+    stack = re.findall(
+        r'^\s+at\s+([^\s(]+)',
+        thread_dump_specific_text,
+        re.MULTILINE
+    )
+
+    #
+    # Last call
+    #
+    info["last_call"] = (
+        stack[-1]
+        if stack
+        else None
+    )
+
+    #
+    # Last custom call
+    #
+    info["last_custom_call"] = None
+
+    for call in reversed(stack):
+
+        if is_custom_call(call):
+            info["last_custom_call"] = call
+            break
+
+    return info
 
 def separate_thread_text(thread_dump_text : str):
 
@@ -88,16 +187,27 @@ def separate_thread_text(thread_dump_text : str):
 
     return header, thread_specific_texts
 
-def create_thread_dumps_csv():
+def create_thread_specific_dumps_csv():
 
-    output_directory = "data\\interpreted"
-    os.makedirs(output_directory, exist_ok=True)
+    os.makedirs(OUTPUT_DIRECTORY, exist_ok=True)
 
-    output_csv = os.path.join(output_directory, "thread_dumps.csv")
+    output_csv = os.path.join(OUTPUT_DIRECTORY, f"{TRHEAD_SPECIFIC_DUMP_NAME}.csv")
 
     with open(output_csv, "w", newline="", encoding="utf-8") as csv_file:
         writer = csv.writer(csv_file)
-        writer.writerow(THREAD_DUMP_ROWS) # this is the header
+        writer.writerow(THREAD_SPECIFIC_DUMP_ROWS) # this is the header
+
+    return output_csv
+
+def create_thread_dumps_csv():
+
+    os.makedirs(OUTPUT_DIRECTORY, exist_ok=True)
+
+    output_csv = os.path.join(OUTPUT_DIRECTORY, f"{GENERAL_THREAD_DUMP_NAME}.csv")
+
+    with open(output_csv, "w", newline="", encoding="utf-8") as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow(GENERAL_THREAD_DUMP_ROWS) # this is the header
 
     return output_csv
 
@@ -109,8 +219,6 @@ def main():
     # directory where thread_dumps are stored
     thread_dumps_directory = "data\\crossjoin_td_test"
 
-    
-
     # thread_dump_files
     thread_dump_file_names = [
         file
@@ -118,10 +226,13 @@ def main():
         if os.path.isfile(os.path.join(thread_dumps_directory, file))
     ]
 
-    output_csv = create_thread_dumps_csv()
+    thread_dump_csv = create_thread_dumps_csv()
+    thread_specific_csv = create_thread_specific_dumps_csv()
 
-    with open(output_csv, "a", newline="", encoding="utf-8") as csv_file:
-        general_thread_dump_writer = csv.DictWriter(csv_file, THREAD_DUMP_ROWS)
+    with open(thread_dump_csv, "a", newline="", encoding="utf-8") as csv_file:
+        general_thread_dump_writer = csv.DictWriter(csv_file, GENERAL_THREAD_DUMP_ROWS)
+
+        
 
         for thread_dump_file in thread_dump_file_names:
 
@@ -139,8 +250,14 @@ def main():
 
             general_thread_dump_writer.writerow({**interpreted_name, **thread_dump_info})
 
+            with open(thread_specific_csv, "a", newline="", encoding="utf-8") as thread_specific_csv_file:
+                specific_thread_dump_writer = csv.DictWriter(thread_specific_csv_file, THREAD_SPECIFIC_DUMP_ROWS)
+        
+                for thread_specific_text in thread_specific_texts:
 
+                    interpreted_thread_info = interpret_single_thread_info(thread_specific_text)
 
+                    specific_thread_dump_writer.writerow({**interpreted_name, **interpreted_thread_info})
 
 
 
