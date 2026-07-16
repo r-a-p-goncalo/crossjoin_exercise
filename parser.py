@@ -1,6 +1,18 @@
 import csv
 from datetime import datetime
 import os
+import re
+
+
+THREAD_DUMP_ROWS = ["service_name", "service_role", "kubernetes_hash", "pod_suffix", "timestamp",
+                    "thread_count"]
+
+CUSTOM_CALL_NAMES = []
+
+def print_threads(thread_specific_texts):
+    for i, thread in enumerate(thread_specific_texts):
+        print(f"========== {i} ==========")
+        print(thread.splitlines()[0])
 
 def interpret_thread_dump_name(thread_dump_name : str) -> dict[str, any]:
         
@@ -25,9 +37,59 @@ def interpret_thread_dump_name(thread_dump_name : str) -> dict[str, any]:
         "timestamp": timestamp,
     }
 
+def interpret_thread_dump_info_in_text(thread_dump_text_header : str) -> dict:
+    '''
+    Interprets general data regarding the specific thread dump
+    '''
+
+    info = {}
+
+    # Number of Java threads
+    match = re.search(
+        r'length=(\d+)',
+        thread_dump_text_header
+    )
+
+    if match:
+        info["thread_count"] = int(match.group(1))
+
+    return info
+
+def interpret_single_thread_info(thread_dump_specific_text : str) -> dict:
+    '''
+    Returns a row for the thread text received
+    '''
+
+
+def separate_thread_text(thread_dump_text : str):
+
+    # First thread always starts with a quoted thread name
+    match = re.search(r'^"', thread_dump_text, flags=re.MULTILINE)
+
+    if match is None:
+        return thread_dump_text, []
+
+    header = thread_dump_text[:match.start()].strip()
+
+    thread_text = thread_dump_text[match.start():]
+
+    # Split whenever a new thread begins
+    thread_specific_texts = re.split(
+        r'(?=^".*")',
+        thread_text,
+        flags=re.MULTILINE
+    )
+
+    thread_specific_texts = [
+        thread.strip()
+        for thread in thread_specific_texts
+        if thread.strip()
+    ]
+
+    return header, thread_specific_texts
+
 def create_thread_dumps_csv():
 
-    # Output directory and CSV
     output_directory = "data\\interpreted"
     os.makedirs(output_directory, exist_ok=True)
 
@@ -35,16 +97,7 @@ def create_thread_dumps_csv():
 
     with open(output_csv, "w", newline="", encoding="utf-8") as csv_file:
         writer = csv.writer(csv_file)
-
-        # Header
-        writer.writerow([
-            "file_name",
-            "service_name",
-            "service_role",
-            "kubernetes_hash",
-            "pod_suffix",
-            "timestamp",
-        ])
+        writer.writerow(THREAD_DUMP_ROWS) # this is the header
 
     return output_csv
 
@@ -68,26 +121,26 @@ def main():
     output_csv = create_thread_dumps_csv()
 
     with open(output_csv, "a", newline="", encoding="utf-8") as csv_file:
-        writer = csv.writer(csv_file)
+        general_thread_dump_writer = csv.DictWriter(csv_file, THREAD_DUMP_ROWS)
 
         for thread_dump_file in thread_dump_file_names:
-        
-            interpreted = interpret_thread_dump_name(thread_dump_file)
-    
-        
-    
-    
-            writer.writerow([
-                    thread_dump_file,
-                    interpreted["service_name"],
-                    interpreted["service_role"],
-                    interpreted["kubernetes_hash"],
-                    interpreted["pod_suffix"],
-                    interpreted["timestamp"].isoformat(),
-                ])
-    
-            print(f"{thread_dump_file} -> {interpreted}")
-    
+
+            interpreted_name = interpret_thread_dump_name(thread_dump_file)
+
+            file_path = os.path.join(thread_dumps_directory, thread_dump_file)
+            with open(file_path, "r", encoding="utf-8") as f:
+                text_in_file = f.read()
+
+            header_text, thread_specific_texts = separate_thread_text(text_in_file)
+
+            thread_dump_info = interpret_thread_dump_info_in_text(header_text)
+
+            assert thread_dump_info["thread_count"] <= len(thread_specific_texts), (f"Thread count mismatch: header={thread_dump_info['thread_count']}, parsed={len(thread_specific_texts)}")
+
+            general_thread_dump_writer.writerow({**interpreted_name, **thread_dump_info})
+
+
+
 
 
 
