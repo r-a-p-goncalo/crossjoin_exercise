@@ -64,40 +64,77 @@ We can notice that there are two pods, presumily representing each a different i
 
 We can take attention to the names / prefixes of the thread names, and separating them into categories.
 
-- Reference Handler
-- Finalizer
-- Signal Dispatcher
-- Service Thread
-- C<?> CompilerThread0
-- Sweeper thread
-- Common-Cleaner
-- lettuce-eventExecutorLoop-1-1
-- Catalina-utility-<?>
-- container-<?>
-- commons-pool-evictor-thread
-- DestroyJavaVM
-- VM Thread
-- GC Thread#0
-- G1 Main Marker
-- G1 Conc#0
-- G1 Refine#0
-- G1 Young RemSet Sampling
-- VM Periodic Task Thread
-- AsynchThread-<?>
-- AMQP Connection <?>
-- pool-2-thread-2
-- Attach Listener
-- spring.cloud.inetutils
-- LLENw...
-    - Reader
-    - Writer
-- http-nio-7012...
-    - -BlockPoller
-    - -ClientPoller
-    - -Acceptor
-- jaeger.RemoteReporter...
-    - -QueueProcessor
-    - -FlushTimer
+Name of thread category:
+thread names
+
+Name of thread category:
+thread names
+
+**JVM Internal Threads:**
+
+* Reference Handler
+* Finalizer
+* Signal Dispatcher
+* Service Thread
+* C<?> CompilerThread0
+* Sweeper thread
+* Common-Cleaner
+* DestroyJavaVM
+* VM Thread
+* VM Periodic Task Thread
+* Attach Listener
+
+**Garbage Collection (G1 GC):**
+
+* GC Thread#0
+* G1 Main Marker
+* G1 Conc#0
+* G1 Refine#0
+* G1 Young RemSet Sampling
+
+**Tomcat (HTTP Server):**
+
+* http-nio-7012...
+
+  * BlockPoller
+  * ClientPoller
+  * Acceptor
+  
+* Catalina-utility-<?>
+
+**Spring Framework:**
+
+* spring.cloud.inetutils
+
+**Application Worker Threads:**
+
+* container-<?>
+* pool-2-thread-2
+* AsynchThread-<?>
+
+**Redis (Lettuce Client):**
+
+* lettuce-eventExecutorLoop-1-1
+* LLENw...
+
+  * Reader
+  * Writer
+
+**Connection Pool Management:**
+
+* commons-pool-evictor-thread
+
+**AMQP / RabbitMQ:**
+
+* AMQP Connection <?>
+
+**Distributed Tracing (Jaeger):**
+
+* jaeger.RemoteReporter...
+
+  * QueueProcessor
+  * FlushTimer
+
 
 ## General Thread Dump info
 
