@@ -37,11 +37,23 @@ A microservice is just a small webserver, with a built-in tomcat and receiving r
 
 In the thread dumps, it's worth noting that some of the threads present are from java itself, and are not counted in the number of threads presented at the begining of the dump
 
+Regarding [thread states](https://docs.oracle.com/javase/8/docs/api/java/lang/Thread.State.html):
+- NEW:  A thread that has not yeted started
+- RUNNABLE: A thread executing in the java virtual machine
+- BLOCKED: A thread that is blocked waiting for a monitor lock
+- WAITING: A thread that is waiting indefinitly for another thread to perform
+- TIMED_WAITING: A thread that is waiting for another thread to perform an action for up to a specified waiting time
+- TERMINATED: A thread that has exited
+
 ## Spring
 
 ## Kubernetes
 
+## TOMCAT / Apache
+
 # Basic intepretation of data
+
+This section is to note easily available information by simply doing a quick search on the files.
 
 ## Thread dump names
 
@@ -99,7 +111,7 @@ thread names
   * BlockPoller
   * ClientPoller
   * Acceptor
-  
+
 * Catalina-utility-<?>
 
 **Spring Framework:**
@@ -135,6 +147,7 @@ thread names
   * QueueProcessor
   * FlushTimer
 
+# Deeper evaluation of data
 
 ## General Thread Dump info
 
@@ -164,7 +177,7 @@ The last row we have access too is at 03:31:27, with 41 threads
 
 ### sl494
 
-From the interpretation of the node nl95v, here:
+From the interpretation of the node sl494, here:
 
 <img src="data\interpreted\thread_count_by_timestamps_sl494.svg" alt="sl494.svg"/>
 
@@ -186,3 +199,91 @@ The number of threads change as:
 - At 01:53:38 both are online, having more or less 60 something threads. This could mean they started sharing the load and so the pressure on sl493 was reduced.
 - Both increase and decrease conjointly, sharing behavior
 - This may indicate that there is no problem specific to an instance of the service
+
+## Status of threads
+
+### nl95v
+
+From the interpretation of the node nl95v, here:
+
+<img src="data\interpreted\status_thread_count_by_timestamps_nl95v.svg" alt="nl95v.svg"/>
+
+We can see that the number of threads in any status other than TIMED_WAITING mantains more or less constant, with the extra threads being almost all with TIMED_WAITING.
+
+### sl494
+
+
+From the interpretation of the node sl494, here:
+
+<img src="data\interpreted\status_thread_count_by_timestamps_sl494.svg" alt="sl494.svg"/>
+
+We can see that the same holds true, noting that the extra overload the node has before the other is activated is also due to threads with the status TIMED_WAITING.
+
+### Conclusion
+
+We can see that, if there is an optimization to be made, it will be probably be showed by the threads with the status TIMED_WAITING.
+
+## Timed waiting threads
+
+From the interpretation of the number of time_waiting threads per thread category in the graph:
+
+<img src="data\interpreted\status_time_waiting_thread_count_by_timestamps.svg" alt="sl494.svg"/>
+
+We cam see that the extra number of threads all come from TOMCAT.
+
+This could mean a focus in the study of the threads of that category:
+
+* http-nio-7012...
+
+  * BlockPoller
+  * ClientPoller
+  * Acceptor
+
+* Catalina-utility-<?>
+
+## Last custom call
+
+From the interpretation of the number, for each unique value in custom_call, of threads that were with that call at snapshot time:
+
+<img src="data\interpreted\thread_count_by_last_custom_call.svg" alt="sl494.svg"/>
+
+We can see that the increase, in the case of last custom calls, is on com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.burrowSession
+
+A bit more irrelevant, but still present, is com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.callServiceGeneric 
+
+## Last call
+
+
+From the interpretation of the number, for each unique value in last call, of threads that were with that call at snapshot time:
+
+<img src="data\interpreted\thread_count_by_last_call.svg" alt="sl494.svg"/>
+
+We can see that most of the increase is on the java.util.concurrent.LinkedBlockingQueue.poll
+
+Secondly, we have org.apache.commons.pool2.impl.LinkedBlockingDeque.pollFirst
+
+
+## Current state of study
+
+These are the points to which we should take attention to:
+
+- In the case of thread states:
+    - TIMED_WAITING threads
+
+- In the case of thread categories:
+    - TOMCAT threads
+
+- In the case of last calls:
+    - java.util.concurrent.LinkedBlockingQueue.poll
+
+    - org.apache.commons.pool2.impl.LinkedBlockingDeque.pollFirst
+
+- In the case of last custom calls:
+
+    - com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.burrowSession
+
+    -  com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.callServiceGeneric
+
+Currently, what this appears is that:
+- for each new request, a thread is spawned
+- those threads spend most of their time simply waiting for a resource to be freed, meaning that is a locked shared resource that is sparse in relation to how much it is used
