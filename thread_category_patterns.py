@@ -1,6 +1,3 @@
-import re
-
-
 THREAD_CATEGORY_PATTERNS = [
 
     # JVM Internal
@@ -53,33 +50,3 @@ THREAD_CATEGORY_PATTERNS = [
     (r"^jaeger\.RemoteReporter.*QueueProcessor$", "Jaeger"),
     (r"^jaeger\.RemoteReporter.*FlushTimer$", "Jaeger"),
 ]
-
-CUSTOM_CALL_PREFIXES = (
-    "com.crossjoin",
-    "pt.crossjoin",
-    "com.company",
-     "com.crossjointest."
-)
-
-
-def is_custom_call(function_name: str) -> bool:
-    """
-    Returns True if any package, class or method component
-    contains the word 'tuxedo' (case-insensitive).
-    """
-
-    return function_name.startswith(CUSTOM_CALL_PREFIXES) or any(
-        "tuxedo" in part.lower()
-        for part in function_name.split(".")
-    )
-
-
-def get_thread_category_from_name(thread_name: str) -> str:
-    if thread_name is None:
-        return None
-
-    for pattern, category in THREAD_CATEGORY_PATTERNS:
-        if re.match(pattern, thread_name):
-            return category
-
-    return thread_name

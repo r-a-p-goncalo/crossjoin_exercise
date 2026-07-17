@@ -2,12 +2,12 @@ import csv
 from datetime import datetime
 import os
 import re
-from thread_names import get_thread_category_from_name, is_custom_call
+from thread_specific import get_thread_category_from_name, is_custom_call, interpret_single_thread_info
 
 OUTPUT_DIRECTORY = "data\\interpreted"
 
 GENERAL_THREAD_DUMP_NAME = "thread_dump_headers"
-GENERAL_THREAD_DUMP_ROWS_BASIC = ["service_name", "service_role", "kubernetes_hash", "pod_suffix", "timestamp"]
+GENERAL_THREAD_DUMP_ROWS_BASIC = ["filename", "service_name", "service_role", "kubernetes_hash", "pod_suffix", "timestamp"]
 
 GENERAL_THREAD_DUMP_ROWS = [*GENERAL_THREAD_DUMP_ROWS_BASIC,
                     "thread_count"]
@@ -67,82 +67,7 @@ def interpret_thread_dump_info_in_text(thread_dump_text_header : str) -> dict:
 
     return info
 
-def interpret_single_thread_info(thread_dump_specific_text : str) -> dict:
-    '''
-    Returns a row for the thread text received
-    '''
 
-    info = {}
-
-    match = re.search(r'^"([^"]+)"', thread_dump_specific_text)
-
-    info["thread_name"] = (
-        match.group(1)
-        if match
-        else None
-    )
-
-    info["thread_category"] = get_thread_category_from_name(info["thread_name"])
-
-
-    match = re.search(
-        r"java\.lang\.Thread\.State:\s+([A-Z_]+)",
-        thread_dump_specific_text
-    )
-
-    info["status"] = (
-        match.group(1)
-        if match
-        else None
-    )
-
-    match = re.search(
-        r"\bcpu=(\d+(?:\.\d+)?)ms",
-        thread_dump_specific_text
-    )
-
-    info["cpu_ms"] = (
-        float(match.group(1))
-        if match
-        else None
-    )
-
-    match = re.search(
-        r"\belapsed=(\d+(?:\.\d+)?)s",
-        thread_dump_specific_text
-    )
-
-    if match:
-        info["time_elapsed_s"] = int(
-            float(match.group(1)) * 1000
-        )
-    else:
-        info["time_elapsed_s"] = None
-
-    # Stack trace
-    stack = re.findall(
-        r'^\s+at\s+([^\s(]+)',
-        thread_dump_specific_text,
-        re.MULTILINE
-    )
-
-    # Last call
-    info["last_call"] = (
-        stack[0]
-        if stack
-        else None
-    )
-
-    # Last custom call
-    info["last_custom_call"] = None
-
-    for call in stack:
-
-        if is_custom_call(call):
-            info["last_custom_call"] = call
-            break
-
-    return info
 
 def separate_thread_text(thread_dump_text : str):
 
@@ -232,7 +157,7 @@ def main():
 
             assert thread_dump_info["thread_count"] <= len(thread_specific_texts), (f"Thread count mismatch: header={thread_dump_info['thread_count']}, parsed={len(thread_specific_texts)}")
 
-            general_thread_dump_writer.writerow({**interpreted_name, **thread_dump_info})
+            general_thread_dump_writer.writerow({"filename" : thread_dump_file, **interpreted_name, **thread_dump_info})
 
             with open(thread_specific_csv, "a", newline="", encoding="utf-8") as thread_specific_csv_file:
                 specific_thread_dump_writer = csv.DictWriter(thread_specific_csv_file, THREAD_SPECIFIC_DUMP_ROWS)
@@ -241,7 +166,7 @@ def main():
 
                     interpreted_thread_info = interpret_single_thread_info(thread_specific_text)
 
-                    specific_thread_dump_writer.writerow({**interpreted_name, **interpreted_thread_info})
+                    specific_thread_dump_writer.writerow({"filename" : thread_dump_file, **interpreted_name, **interpreted_thread_info})
 
 
 
