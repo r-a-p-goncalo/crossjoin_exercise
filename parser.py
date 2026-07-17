@@ -2,6 +2,7 @@ import csv
 from datetime import datetime
 import os
 import re
+from thread_names import get_thread_category_from_name, is_custom_call
 
 OUTPUT_DIRECTORY = "data\\interpreted"
 
@@ -13,25 +14,11 @@ GENERAL_THREAD_DUMP_ROWS = [*GENERAL_THREAD_DUMP_ROWS_BASIC,
 
 TRHEAD_SPECIFIC_DUMP_NAME = "thread_specific"
 THREAD_SPECIFIC_DUMP_ROWS = [*GENERAL_THREAD_DUMP_ROWS_BASIC,
-                             "thread_name", "status", "cpu_ms", "time_elapsed_ms", "last_call", "last_custom_call"]
+                             "thread_name", "thread_category","status", "cpu_ms", "time_elapsed_s", "last_call", "last_custom_call"]
 
-CUSTOM_CALL_PREFIXES = (
-    "com.crossjoin",
-    "pt.crossjoin",
-    "com.company",
-     "com.crossjointest."
-)
 
-def is_custom_call(function_name: str) -> bool:
-    """
-    Returns True if any package, class or method component
-    contains the word 'tuxedo' (case-insensitive).
-    """
 
-    return function_name.startswith(CUSTOM_CALL_PREFIXES) or any(
-        "tuxedo" in part.lower()
-        for part in function_name.split(".")
-    )
+
 
 
 def print_threads(thread_specific_texts):
@@ -95,6 +82,9 @@ def interpret_single_thread_info(thread_dump_specific_text : str) -> dict:
         else None
     )
 
+    info["thread_category"] = get_thread_category_from_name(info["thread_name"])
+
+
     match = re.search(
         r"java\.lang\.Thread\.State:\s+([A-Z_]+)",
         thread_dump_specific_text
@@ -123,11 +113,11 @@ def interpret_single_thread_info(thread_dump_specific_text : str) -> dict:
     )
 
     if match:
-        info["time_elapsed_ms"] = int(
+        info["time_elapsed_s"] = int(
             float(match.group(1)) * 1000
         )
     else:
-        info["time_elapsed_ms"] = None
+        info["time_elapsed_s"] = None
 
     #
     # Stack trace
