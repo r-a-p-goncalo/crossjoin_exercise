@@ -119,30 +119,24 @@ def interpret_single_thread_info(thread_dump_specific_text : str) -> dict:
     else:
         info["time_elapsed_s"] = None
 
-    #
     # Stack trace
-    #
     stack = re.findall(
         r'^\s+at\s+([^\s(]+)',
         thread_dump_specific_text,
         re.MULTILINE
     )
 
-    #
     # Last call
-    #
     info["last_call"] = (
-        stack[-1]
+        stack[0]
         if stack
         else None
     )
 
-    #
     # Last custom call
-    #
     info["last_custom_call"] = None
 
-    for call in reversed(stack):
+    for call in stack:
 
         if is_custom_call(call):
             info["last_custom_call"] = call
