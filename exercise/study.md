@@ -1,326 +1,5 @@
 
-# Exercise description and tips
 
-## Background
-
-There is an application with a Microservices architecture.
-
-2 instances of a service running spring boot, each receiving HTTP requests and communicating with a single Tuxedo service using Jolt.
-
-As load increases, times of requests increase until the services are forced to restart. After, each pattern continues.
-
-There are thread dumps of both services, which are to be studied.
-
-## Objective
-
-Itentify the problem and, if possible, give suggestions on how to solve it.
-
-## Deliverables
-
-## Work pipeline
-
-Create a parser for the thread dumps.
-
-Save the data into a csv, which can then be imported into an excel.
-
-The columns are: Timestamp, Thread Type, Thread name, Thread state, last call, last custom call
-
-Through making pivot tables and charts, evaluate the results.
-
-Identify the root cause of the problem
-
-Give a suggestion on the solution
-
-## Tips
-
-Last Custom Call is more important, as it is the client's code
-
-Make sure to think about queueing theory and System with high competing order requests
-
-A microservice is just a small webserver, with a built-in tomcat and receiving requests
-
-
-
-# Some technological Background
-
-## Java
-
-### Thread dumps
-
-In the thread dumps, it's worth noting that some of the threads present are from java itself, and are not counted in the number of threads presented at the begining of the dump
-
-A java thread dump will start with some header information:
-- Timestamp
-- Some information of the machine
-- Thread id list and its length, without taking into account the internal java threads
-
-Followed by, for each thread, some information regarding it and its stacktrace.
-
-For example:
-
-
-    "Reference Handler" #2 daemon prio=10 os_prio=0 cpu=38.35ms elapsed=28523.20s   tid=0x00007f01d032d800 nid=0xe waiting on condition  [0x00007f01b06fc000]
-       java.lang.Thread.State: RUNNABLE
-    	at java.lang.ref.Reference.waitForReferencePendingList(java.base@11.0.10/Native Method)
-    	at java.lang.ref.Reference.processPendingReferences(java.base@11.0.10/Reference.java:241)
-    	at java.lang.ref.Reference$ReferenceHandler.run(java.base@11.0.10/Reference.java:213)
-
-or
-
-    "Finalizer" #3 daemon prio=8 os_prio=0 cpu=111.91ms elapsed=28523.20s tid=0x00007f01d032f800    nid=0xf in Object.wait()  [0x00007f01b05fb000]
-       java.lang.Thread.State: WAITING (on object monitor)
-    	at java.lang.ref.ReferenceQueue.remove(java.base@11.0.10/ReferenceQueue.java:155)
-    	- waiting to re-lock in wait() <0x00000000a030c170> (a java.lang.ref.ReferenceQueue$Lock)
-    	at java.lang.ref.ReferenceQueue.remove(java.base@11.0.10/ReferenceQueue.java:176)
-    	at java.lang.ref.Finalizer$FinalizerThread.run(java.base@11.0.10/Finalizer.java:170)
-
-or
-
-    "lettuce-eventExecutorLoop-1-1" #17 daemon prio=5 os_prio=0 cpu=13.53ms elapsed=28495.00s   tid=0x00007f01d189c800 nid=0x1a waiting on condition  [0x00007f016f0cb000]
-       java.lang.Thread.State: TIMED_WAITING (parking)
-    	at java.util.concurrent.LinkedBlockingQueue.poll(java.base@11.0.10/LinkedBlockingQueue.java:458)
-    	at io.netty.util.concurrent.SingleThreadEventExecutor.takeTask(SingleThreadEventExecutor.java:256)
-    	at io.netty.util.concurrent.DefaultEventExecutor.run(DefaultEventExecutor.java:64)
-    	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:989)
-    	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
-    	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
-    	at java.lang.Thread.run(java.base@11.0.10/Thread.java:834)
-
-or 
-
-    "http-nio-7012-ClientPoller" #94 daemon prio=5 os_prio=0 cpu=9248.76ms elapsed=28442.31s tid=0x00007f01d12d0800 nid=0x67 runnable   [0x00007f00b5ee9000]
-       java.lang.Thread.State: RUNNABLE
-    	at sun.nio.ch.EPoll.wait(java.base@11.0.10/Native Method)
-    	at sun.nio.ch.EPollSelectorImpl.doSelect(java.base@11.0.10/EPollSelectorImpl.java:120)
-    	at sun.nio.ch.SelectorImpl.lockAndDoSelect(java.base@11.0.10/SelectorImpl.java:124)
-    	- locked <0x00000000a1e87cb8> (a sun.nio.ch.Util$2)
-    	- locked <0x00000000a1e87610> (a sun.nio.ch.EPollSelectorImpl)
-    	at sun.nio.ch.SelectorImpl.select(java.base@11.0.10/SelectorImpl.java:136)
-    	at org.apache.tomcat.util.net.NioEndpoint$Poller.run(NioEndpoint.java:709)
-    	at java.lang.Thread.run(java.base@11.0.10/Thread.java:834)
-
-or 
-
-    "http-nio-7012-exec-158" #333 daemon prio=5 os_prio=0 cpu=959.09ms elapsed=1156.65s tid=0x00007f01340d2000 nid=0x10f5 in Object.wait()  [0x00007f00accc9000]
-       java.lang.Thread.State: TIMED_WAITING (on object monitor)
-    	at bea.jolt.IOBuf.waitOnBuf(IOBuf.java:119)
-    	- waiting to re-lock in wait() <0x00000000baf50170> (a bea.jolt.IOBuf)
-    	at bea.jolt.NwHdlr.recv(NwHdlr.java:1685)
-    	at bea.jolt.CMgr.recv(CMgr.java:235)
-    	at bea.jolt.JoltSession.recv(JoltSession.java:585)
-    	at bea.jolt.JoltRemoteService.call(JoltRemoteService.java:340)
-    	at bea.jolt.JoltRemoteService.call(JoltRemoteService.java:283)
-    	at com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.callServiceGeneric(TuxedoTransaction.java:136)
-    	at com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.sendPPGAMesage(TuxedoTransaction.java:72)
-    	at com.crossjointest.cbs.tuxedo.controller.TuxedoAdapterController.ppgaService(TuxedoAdapterController.java:88)
-    	at com.crossjointest.cbs.tuxedo.controller.TuxedoAdapterController$$FastClassBySpringCGLIB$$a341162e.invoke(<generated>)
-    	at org.springframework.cglib.proxy.MethodProxy.invoke(MethodProxy.java:218)
-    	...
-    	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:691)
-    	at com.crossjointest.cbs.tuxedo.controller.TuxedoAdapterController$$EnhancerBySpringCGLIB$$c2540f2b.ppgaService(<generated>)
-    	at jdk.internal.reflect.GeneratedMethodAccessor117.invoke(Unknown Source)
-    	at jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(java.base@11.0.10/DelegatingMethodAccessorImpl.java:43)
-    	at java.lang.reflect.Method.invoke(java.base@11.0.10/Method.java:566)
-    	at org.springframework.web.method.support.InvocableHandlerMethod.doInvoke(InvocableHandlerMethod.java:197)
-    	...
-    	at org.springframework.web.servlet.FrameworkServlet.doPost(FrameworkServlet.java:909)
-    	at javax.servlet.http.HttpServlet.service(HttpServlet.java:652)
-    	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:883)
-    	at javax.servlet.http.HttpServlet.service(HttpServlet.java:733)
-    	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:231)
-    	...
-    	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:166)
-    	at com.crossjointest.cbs.tuxedo.filter.ApplicationFilter.doFilter(ApplicationFilter.java:52)
-    	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:193)
-    	...
-    	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:119)
-    	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:193)
-    	...
-    	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:166)
-    	at io.opentracing.contrib.web.servlet.filter.TracingFilter.doFilter(TracingFilter.java:189)
-    	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:193)
-    	---
-    	at org.apache.catalina.authenticator.AuthenticatorBase.invoke(AuthenticatorBase.java:542)
-    	at org.apache.catalina.core.StandardHostValve.invoke(StandardHostValve.java:143)
-    	---
-    	at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:343)
-    	at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:374)
-    	---
-    	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1590)
-    	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:49)
-    	- locked <0x00000000b352b970> (a org.apache.tomcat.util.net.NioEndpoint$NioSocketWrapper)
-    	at java.util.concurrent.ThreadPoolExecutor.runWorker(java.base@11.0.10/ThreadPoolExecutor.java:1128)
-    	at java.util.concurrent.ThreadPoolExecutor$Worker.run(java.base@11.0.10/ThreadPoolExecutor.java:628)
-    	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:61)
-    	at java.lang.Thread.run(java.base@11.0.10/Thread.java:834)
-
-
-From which we can take out this information:
-- Thread name
-- Thread number
-- Daemon flag
-- Java priority
-- OS priority
-- cpu time in ms
-- elapsed lifetime in s
-- thread id
-- native id
-- native status
-- thread state
-- For each function call:
-    - Function name
-    - Function location
-    - Locked reference and class if any, with maybe class
-
-### Java multi threads
-
-Regarding [thread states](https://docs.oracle.com/javase/8/docs/api/java/lang/Thread.State.html):
-- NEW:  A thread that has not yeted started
-- RUNNABLE: A thread executing in the java virtual machine
-- BLOCKED: A thread that is blocked waiting for a monitor lock
-- WAITING: A thread that is waiting indefinitly for another thread to perform
-- TIMED_WAITING: A thread that is waiting for another thread to perform an action for up to a specified waiting time
-- TERMINATED: A thread that has exited
-
-## Spring
-
-## Kubernetes
-
-## [TOMCAT / Apache](https://en.wikipedia.org/wiki/Apache_Tomcat)
-
-It provides an HTTP web server environment in which java code can also run.
-
-Catalina is Tomcat's servlet container.
-
-
-## [Tuxedo](https://en.wikipedia.org/wiki/Tuxedo_(software))
-
-Tuxedo is a middleware platform used to manage distributed transaction processing in distributed computing environments. It is, at its core, a message routing and queuing system. Requests are sent to named services and tuxedo uses memory-based inter-process communication facilities to queue the requests to servers.
-
-
-
-The heart of the tuxedo system is the bulleting board (BB). This is a shared memory segment that contains the configuration and state of a Tuxedo domain. Servers, services, transactions, and clients are all registered in the BB providing a global view of their state across the machines within a domain.
-
-## [Jolt](https://docs.oracle.com/cd/E35855_01/tuxedo/docs12c/jdg/dvintro.html)
-
-### [Oracle Jolt Components](https://docs.oracle.com/en/database/oracle/tuxedo/22/otxjo/oracle-jolt-components.html)
-
-Jolt Servers and Repository Servers - one or more Jolt servers listen for network connections from clients, translate Jolt messages, multiplex multiple clients into a single process, and submit and retrieve requests to and from Oracle Tuxedo-based applications running on one or more Oracle Tuxedo servers.
-
-Jolt class library - a Java package containing the class files that implement the Jolt API. These classes enable Java applications and applets to invoke Oracle Tuxedo services. The Jolt class library includes functionality to set, retrieve, manage, and invoke communication attributes, notifications, network connections, transactions, and services.
-
-JoltBeans - Oracle JoltBeans provides a JavaBeans-compliant interface to Oracle Jolt. JoltBeans are Beans components that you can use in JavaBeans-enabled integrated development environments (IDEs) to construct Oracle Jolt clients. Jolt Beans consists of two sets of Java Beans: JoltBeans toolkit (a JavaBeans-compliant interface to Oracle Jolt that includes the JoltServiceBean, JoltSessionBean, and JoltUserEventBean) and Jolt GUI beans, which consist of Jolt-aware Abstract Window Toolkit (AWT) and Swing-based beans.
-
-Jolt Internet Relay - the Jolt Internet Relay is a component that routes messages from a Jolt client to a Jolt Server Listener (JSL) or Jolt Server Handler (JSH). This component eliminates the need for the JSH and Oracle Tuxedo to run on the same machine as the Web server. The Jolt Internet Relay consists of the Jolt Relay (JRLY) and the Jolt Relay Adapter (JRAD).
-
-Jolt ECID — The Jolt call process is as follows: JOLT client --> JSL/JSH --> tuxedo server --> service.
-
-### [How Oracle Jolt Works]()
-
-Using the following figure as an example, a simple banking application might have services such as INQUIRY, WITHDRAW, TRANSFER, and DEPOSIT. Typically, service requests are implemented in C or COBOL as a sequence of calls to a program library. Accessing a library from a native program means installing the library for the specific combination of CPU and operating system release on the client machine, a situation that Java was expressly designed to avoid. The Jolt Server implementation acts as a proxy for the Jolt client, invoking the Oracle Tuxedo service on behalf of the client. The Oracle Jolt Server accepts requests from the Jolt clients and maps those requests into Oracle Tuxedo service requests.
-
-<img src="https://docs.oracle.com/en/database/oracle/tuxedo/22/otxjo/img/dvintro-1.1.1.jpg" alt="Oracle Jolt Architecture"/>
-
-## Queueing theory
-
-Arrivals are modeled with poisson distribution.
-
-We can also model service ends (departures) with poisson distribution.
-
-This can evolve into a model where the state is described by the current number of customers in the queue, and transitions with probability for transitioning for a state with one more customer, one less customer and equal number of customers.
-
-The queue can be studied in relation to, tending to infinity, in which value it will stabilize in.
-
-# Basic intepretation of data
-
-This section is to note easily available information by simply doing a quick search on the files.
-
-## Thread dump names
-
-For "tuxedo-adapter-service-primary-7b78c65dc8-nl95v_20210329015750":
-
-- tuxedo-adapter-service-primary is the name of the service
-
-- 7b78c65dc8 is kubernetes ReplicaSet hash
-
-- nl95v is pod suffix
-
-- 20210329017550 is time: year 2021, month 03, day 29, 01 hour, 75 mins, 50s
-
-
-We can notice that there are two pods, presumily representing each a different instance of the service:
-- nl95v
-- sl494
-
-## Threads present
-
-We can take attention to the names / prefixes of the thread names, and separating them into categories.
-
-**JVM Internal Threads:**
-
-* Reference Handler
-* Finalizer
-* Signal Dispatcher
-* Service Thread
-* C<?> CompilerThread0
-* Sweeper thread
-* Common-Cleaner
-* DestroyJavaVM
-* VM Thread
-* VM Periodic Task Thread
-* Attach Listener
-
-**Garbage Collection (G1 GC):**
-
-* GC Thread#0
-* G1 Main Marker
-* G1 Conc#0
-* G1 Refine#0
-* G1 Young RemSet Sampling
-
-**Tomcat (HTTP Server):**
-
-* http-nio-7012...
-
-  * BlockPoller
-  * ClientPoller
-  * Acceptor
-  * exec
-
-* Catalina-utility-<?>
-
-**Spring Framework:**
-
-* spring.cloud.inetutils
-
-**Application Worker Threads:**
-
-* container-<?>
-* pool-2-thread-2
-* AsynchThread-<?>
-
-**Redis (Lettuce Client):**
-
-* lettuce-eventExecutorLoop-1-1
-* LLENw...
-
-  * Reader
-  * Writer
-
-**Connection Pool Management:**
-
-* commons-pool-evictor-thread
-
-**AMQP / RabbitMQ:**
-
-* AMQP Connection <?>
-
-**Distributed Tracing (Jaeger):**
-
-* jaeger.RemoteReporter...
-
-  * QueueProcessor
-  * FlushTimer
 
 # Deeper evaluation of data
 
@@ -330,7 +9,7 @@ We can take attention to the names / prefixes of the thread names, and separatin
 
 From the interpretation of the node nl95v, here:
 
-<img src="data\interpreted\thread_count_by_timestamps_nl95v.svg" alt="nl95v.svg"/>
+<img src="..\data\interpreted\thread_count_by_timestamps_nl95v.svg" alt="nl95v.svg"/>
 
 We can see that the thread count increases from 64 at 01:57:50 to 80 at 02:01:56 in slow pace. 
 
@@ -360,7 +39,7 @@ The last row we have access too is at 03:31:27, with 41 threads
 
 From the interpretation of the node sl494, here:
 
-<img src="data\interpreted\thread_count_by_timestamps_sl494.svg" alt="sl494.svg"/>
+<img src="..\data\interpreted\thread_count_by_timestamps_sl494.svg" alt="sl494.svg"/>
 
 The number of threads change as:
 - start 01:51:35 -> 138
@@ -390,7 +69,7 @@ The number of threads change as:
 
 From the interpretation of the node nl95v, here:
 
-<img src="data\interpreted\status_thread_count_by_timestamps_nl95v.svg" alt="nl95v.svg"/>
+<img src="..\data\interpreted\status_thread_count_by_timestamps_nl95v.svg" alt="nl95v.svg"/>
 
 We can see that the number of threads in any status other than TIMED_WAITING mantains more or less constant, with the extra threads being almost all with TIMED_WAITING.
 
@@ -399,7 +78,7 @@ We can see that the number of threads in any status other than TIMED_WAITING man
 
 From the interpretation of the node sl494, here:
 
-<img src="data\interpreted\status_thread_count_by_timestamps_sl494.svg" alt="sl494.svg"/>
+<img src="..\data\interpreted\status_thread_count_by_timestamps_sl494.svg" alt="sl494.svg"/>
 
 We can see that the same holds true, noting that the extra overload the node has before the other is activated is also due to threads with the status TIMED_WAITING.
 
@@ -409,11 +88,18 @@ We can see that, if there is an optimization to be made, it will be probably be 
 
 A question to be made is why there are no more threads with RUNNABLE status, this means that as requests increase, the capability of concurrently processing requests does not increase, only the number of queued tasks?
 
-## Timed waiting threads
+
+## Evolution of threads per category
+
+
+
+## Evolution of threads per status
+
+### Timed waiting threads
 
 From the interpretation of the number of time_waiting threads per thread category in the graph:
 
-<img src="data\interpreted\status_time_waiting_thread_count_by_timestamps.svg" alt="sl494.svg"/>
+<img src="..\data\interpreted\status_time_waiting_thread_count_by_timestamps.svg" alt="sl494.svg"/>
 
 We cam see that the extra number of threads all come from TOMCAT.
 
@@ -431,31 +117,40 @@ This could mean a focus in the study of the threads of that category:
 
 From the interpretation of the number, for each unique value in custom_call, of threads that were with that call at snapshot time:
 
-<img src="data\interpreted\thread_count_by_last_custom_call.svg" alt="sl494.svg"/>
+<img src="..\data\interpreted\thread_count_by_last_custom_call.svg" alt="sl494.svg"/>
 
-We can see that the increase, in the case of last custom calls, is on com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.borrowSession
+We can see that the increase, in the case of last custom calls, is on `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.borrowSession`
 
-A bit more irrelevant, but still present, is com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.callServiceGeneric 
+A bit more irrelevant, but still present, is `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.callServiceGeneric`
 
 ## Last call
 
 
 From the interpretation of the number, for each unique value in last call, of threads that were with that call at snapshot time:
 
-<img src="data\interpreted\thread_count_by_last_call.svg" alt="sl494.svg"/>
+<img src="..\data\interpreted\thread_count_by_last_call.svg" alt="sl494.svg"/>
 
-We can see that most of the increase is on the `java.util.concurrent.LinkedBlockingQueue.poll`.
+We can see that most of the increase is on the `java.util.concurrent.LinkedBlockingQueue.poll`, spiking up to 113 threads doing it. This does not appear to totally follow the load increase pattern.
 
-Secondly, we have `org.apache.commons.pool2.impl.LinkedBlockingDeque.pollFirst`.
+Secondly, we have `org.apache.commons.pool2.impl.LinkedBlockingDeque.pollFirst`, spiking up to 78 threads. This appears to totally not follow the load increase pattern.
 
 Without those two, we have:
 
-<img src="data\interpreted\thread_count_by_last_call_lesser.svg" alt="sl494.svg"/>
+<img src="..\data\interpreted\thread_count_by_last_call_lesser.svg" alt="sl494.svg"/>
 
-Where we can see, acompanying the server load, `java.net.SocketInputStrem.socketRead`, spiking to a maximum of 19 threads doing the method.
+Where we can see, acompanying the server load, `java.net.SocketInputStream.socketRead`, spiking to a maximum of 19 threads doing the method.
 
 Also accompanying the server load, we have `java.util.concurrent.LinkedBlockingQueue.take`, spiking to a maximum of 19 threads.
 
+Taking a deeper look into those threads,
+
+<img src="..\data\interpreted\status_of_linkedblockingqueue.take.svg" alt="sl494.svg"/>
+
+We cam see that the increase is due to TOMCAT threads.
+
+<img src="..\data\interpreted\status_of_socketRead.svg" alt="sl494.svg"/>
+
+We can see that socketRead actually spends all of its time as RUNNABLE. A question to be made is, if this is related to processing requests, and it increases with the load, shouldn't it increase more? Peacking at 19 is weird when more than 140 threads. Another thing to note is that this happens in threads classified as "Redis"
 
 ## Look at tomcat threads and their purposes
 
@@ -479,11 +174,11 @@ The threads we currently have classified as "Tomcat" are:
 
 From the thread relations between last calls and last custom calls, specially when filtered:
 
-<img src="data\interpreted\last_calls_relations.svg" alt="sl494.svg"/>
+<img src="..\data\interpreted\last_calls_relations.svg" alt="sl494.svg"/>
 
-<img src="data\interpreted\last_calls_relations_filtered.svg" alt="sl494.svg"/>
+<img src="..\data\interpreted\last_calls_relations_filtered.svg" alt="sl494.svg"/>
 
-<img src="data\interpreted\last_calls_relations_filtered_custom_rows.svg" alt="sl494.svg"/>
+<img src="..\data\interpreted\last_calls_relations_filtered_custom_rows.svg" alt="sl494.svg"/>
 
 We can see that `java.util.concurrent.LinkedBlockingQueue.poll` has 10388 cases, all of its appearances in our thread dumps, as not being associated with any last custom call.
 
@@ -715,6 +410,27 @@ We can see:
 
 For an example of `org.apache.commons.pool2.impl.LinkedBlockingDeque.pollFirst`, it is unecessary, as it only appears with the already studied `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.borrowSession` 
 
+For an example of `java.util.concurrent.LinkedBlockingQueue.poll`, in nl95v, in timestamp 02:02:57:
+
+	"LLENwReader" #154 daemon prio=5 os_prio=0 cpu=766.65ms elapsed=4630.65s tid=0x00007f011c00c800 nid=0x5a5 runnable  [0x00007f00b79f8000]
+	   java.lang.Thread.State: RUNNABLE
+		at java.net.SocketInputStream.socketRead0(java.base@11.0.10/Native Method)
+		at java.net.SocketInputStream.socketRead(java.base@11.0.10/SocketInputStream.java:115)
+		at java.net.SocketInputStream.read(java.base@11.0.10/SocketInputStream.java:168)
+		at java.net.SocketInputStream.read(java.base@11.0.10/SocketInputStream.java:140)
+		at java.io.DataInputStream.readFully(java.base@11.0.10/DataInputStream.java:200)
+		at bea.jolt.NwReader.run(NwHdlr.java:4001)
+
+	we also have
+
+	"LLENwWriter" #155 daemon prio=5 os_prio=0 cpu=671.72ms elapsed=4630.65s tid=0x00007f011c00f000 nid=0x5a6 in Object.wait()  [0x00007f00b78f7000]
+	   java.lang.Thread.State: WAITING (on object monitor)
+		at bea.jolt.OutQ.getFromQ(OutQ.java:89)
+		- waiting to re-lock in wait() <0x00000000a258d730> (a bea.jolt.OutQ)
+		at bea.jolt.NwWriter.run(NwHdlr.java:4366)
+
+
+
 ## Look into interesting functions
 
 Right now, given the numbers, the focus should be on `java.util.concurrent.LinkedBlockingQueue.poll` and where it is present. So, for that, we'll take a look into the last function on the stacktrace:
@@ -770,7 +486,7 @@ Now, when `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.callServiceGen
 
 Here we'll take attention to what are, for a thread name, the processes we see it taking.
 
-<img src="data\interpreted\thread_timelife_nl95v_http-nio-7012-exec-100.svg" alt="sl494.svg"/>
+<img src="..\data\interpreted\thread_timelife_nl95v_http-nio-7012-exec-100.svg" alt="sl494.svg"/>
 
 Here we take a look into the thread http-nio-7012-exec-100 in node nl95v.
 
@@ -789,7 +505,7 @@ An interesting thing is that it seems to rare to spend more than 1 minute in any
 This seems like healthy behavior.
 
 
-<img src="data\interpreted\thread_timelife_nl95v_http-nio-7012-exec-102.svg" alt="sl494.svg"/>
+<img src="..\data\interpreted\thread_timelife_nl95v_http-nio-7012-exec-102.svg" alt="sl494.svg"/>
 
 Here we take a look into the thread http-nio-7012-exec-102 in node nl95v.
 
@@ -836,34 +552,3 @@ Tomcat
 HTTP Client
 ```
 
-## Current interpretation of the problem
-
-### What is not the problem
-
-- The application is not CPU-bound: most additional threads are in `TIMED_WAITING`, not `RUNNABLE`.
-- There is no evidence of a JVM or garbage collection issue.
-- The problem is not isolated to a single pod, since both instances exhibit the same behavior.
-- Tomcat itself is not the root cause; its worker threads are blocked because they are waiting on downstream resources.
-
-### What is the problem
-
-The evidence indicates that request-processing threads spend most of their lifetime waiting instead of executing.
-
-Two waiting points dominate:
-
-- `borrowSession()`, where requests wait for an available Jolt session from the Commons Pool.
-- `bea.jolt.IOBuf.waitOnBuf`, where requests wait for a response from the Tuxedo backend.
-
-As backend latency increases or the pool of available Jolt sessions becomes exhausted, more Tomcat worker threads become blocked. Tomcat creates additional worker threads to continue serving incoming requests, causing the observed growth in `http-nio-7012-exec-*` threads. Eventually, a large portion of the thread pool is occupied by waiting requests, increasing latency for all clients and leading to service degradation.
-
-### Solution suggestion
-
-The bottleneck appears to be the synchronous communication with Tuxedo rather than the HTTP layer.
-
-Possible improvements include:
-
-- Verify whether the Jolt session pool is undersized and increase it if appropriate.
-- Investigate why Tuxedo requests take so long to complete and optimize the backend service.
-- Configure appropriate connection and request timeouts to avoid indefinitely occupied worker threads.
-- Limit request concurrency or introduce back-pressure to prevent thread accumulation during overload.
-- If feasible, replace the synchronous request model with an asynchronous architecture so that Tomcat worker threads are not blocked while waiting for backend responses.

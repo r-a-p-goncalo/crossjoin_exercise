@@ -1,6 +1,6 @@
 import re
 
-from thread_category_patterns import THREAD_CATEGORY_PATTERNS
+from code.thread_category_patterns import THREAD_CATEGORY_PATTERNS
 
 
 
@@ -21,13 +21,19 @@ def interpret_single_thread_info(thread_dump_specific_text : str) -> dict:
 
     match = re.search(r'^"([^"]+)"', thread_dump_specific_text)
 
-    info["thread_name"] = (
-        match.group(1)
-        if match
-        else None
+    match = re.search(
+        r'^"([^"]+)"\s+#(\d+)',
+        thread_dump_specific_text
     )
-
-    info["thread_category"] = get_thread_category_from_name(info["thread_name"])
+    
+    if match:
+        info["thread_name"] = match.group(1)
+        info["thread_id"] = int(match.group(2))
+    else:
+        info["thread_name"] = None
+        info["thread_id"] = None
+    
+        info["thread_category"] = get_thread_category_from_name(info["thread_name"])
 
 
     match = re.search(
