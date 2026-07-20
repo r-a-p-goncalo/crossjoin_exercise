@@ -65,7 +65,7 @@ def interpret_single_thread_info(thread_dump_specific_text : str) -> dict:
         info["time_elapsed_s"] = None
 
     # Stack trace
-    stack = re.findall(
+    stack = re.findall( # this matches every line with at ...
         r'^\s+at\s+([^\s(]+)',
         thread_dump_specific_text,
         re.MULTILINE
