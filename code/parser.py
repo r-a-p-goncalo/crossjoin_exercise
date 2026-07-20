@@ -15,7 +15,7 @@ GENERAL_THREAD_DUMP_ROWS = [*GENERAL_THREAD_DUMP_ROWS_BASIC,
 
 TRHEAD_SPECIFIC_DUMP_NAME = "thread_specific"
 THREAD_SPECIFIC_DUMP_ROWS = [*GENERAL_THREAD_DUMP_ROWS_BASIC,
-                             "thread_name", "thread_category", "thread_subcategory","thread_id", "status", "cpu_ms", "time_elapsed_s", "last_call", "last_custom_call"]
+                             "thread_name", "thread_category", "thread_subcategory","thread_id", "status", "cpu_ms", "cpu_ms_since_last", "time_elapsed_s", "last_call", "last_custom_call"]
 
 
 
@@ -146,7 +146,7 @@ def main():
 
         for thread_dump_file in thread_dump_file_names:
 
-            interpreted_name = interpret_thread_dump_name(thread_dump_file)
+            interpreted_thread_header_values = interpret_thread_dump_name(thread_dump_file)
 
             file_path = os.path.join(thread_dumps_directory, thread_dump_file)
             with open(file_path, "r", encoding="utf-8") as f:
@@ -158,16 +158,16 @@ def main():
 
             assert thread_dump_info["thread_count"] <= len(thread_specific_texts), (f"Thread count mismatch: header={thread_dump_info['thread_count']}, parsed={len(thread_specific_texts)}")
 
-            general_thread_dump_writer.writerow({"filename" : thread_dump_file, **interpreted_name, **thread_dump_info})
+            general_thread_dump_writer.writerow({"filename" : thread_dump_file, **interpreted_thread_header_values, **thread_dump_info})
 
             with open(thread_specific_csv, "a", newline="", encoding="utf-8") as thread_specific_csv_file:
                 specific_thread_dump_writer = csv.DictWriter(thread_specific_csv_file, THREAD_SPECIFIC_DUMP_ROWS)
         
                 for thread_specific_text in thread_specific_texts:
 
-                    interpreted_thread_info = interpret_single_thread_info(thread_specific_text)
+                    interpreted_thread_info = interpret_single_thread_info(thread_specific_csv, {**interpreted_thread_header_values}, thread_specific_text)
 
-                    specific_thread_dump_writer.writerow({"filename" : thread_dump_file, **interpreted_name, **interpreted_thread_info})
+                    specific_thread_dump_writer.writerow({"filename" : thread_dump_file, **interpreted_thread_info})
 
 
 

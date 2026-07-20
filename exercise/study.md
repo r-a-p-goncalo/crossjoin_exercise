@@ -9,7 +9,7 @@
 
 From the interpretation of the node nl95v, here:
 
-<img src="..\data\interpreted\thread_count_by_timestamps_nl95v.svg" alt="nl95v.svg"/>
+<img src="..\data\interpreted\diagrams\thread_count_by_timestamps_nl95v.svg" alt="nl95v.svg"/>
 
 We can see that the thread count increases from 64 at 01:57:50 to 80 at 02:01:56 in slow pace. 
 
@@ -39,7 +39,7 @@ The last row we have access too is at 03:31:27, with 41 threads
 
 From the interpretation of the node sl494, here:
 
-<img src="..\data\interpreted\thread_count_by_timestamps_sl494.svg" alt="sl494.svg"/>
+<img src="..\data\interpreted\diagrams\thread_count_by_timestamps_sl494.svg" alt="sl494.svg"/>
 
 The number of threads change as:
 - start 01:51:35 -> 138
@@ -53,82 +53,117 @@ The number of threads change as:
 - ends at 03:31:28 -> 41
 
 
-### Both nodes
+### Notes
 
-- sl494 starts first at 01:51:35, with the first two minutes having 138 threads
+sl494 starts first at 01:51:35, with the first two minutes having 138 threads
 
-- At 01:53:38 both are online, having more or less 60 something threads. This could mean they started sharing the load and so the pressure on sl493 was reduced. A counter argument to this is that the number of threads in sl494 actually reduces before the first timestamp for nl95v.
+At 01:53:38 both are online, having more or less 60 something threads. This could mean they started sharing the load and so the pressure on sl493 was reduced. A counter argument to this is that the number of threads in sl494 actually reduces before the first timestamp for nl95v.
 
-- Both increase and decrease conjointly, sharing behavior
+Both increase and decrease conjointly, sharing behavior
 
-- This may indicate that there is no problem specific to an instance of the service
+This may indicate that there is no problem specific to an instance of the service
 
-## Status of threads
+The problem can either be connected to the rising number of threads, but that rise may also just be explained by more requests leading to more threads being available for them.
 
-### nl95v
+There is the possibility that the rise of threads is not, in any way, shape or form, correlated with the actual problem.
 
-From the interpretation of the node nl95v, here:
+We also have to consider that these services may be working properly. Is there any visible problem beyond the number of threads?
 
-<img src="..\data\interpreted\status_thread_count_by_timestamps_nl95v.svg" alt="nl95v.svg"/>
+## Evolution of status of threads
+
+<img src="..\data\interpreted\diagrams\status_thread_count_by_timestamps_nl95v.svg" alt="nl95v.svg"/>
+
+<img src="..\data\interpreted\diagrams\status_thread_count_by_timestamps_sl494.svg" alt="sl494.svg"/>
 
 We can see that the number of threads in any status other than TIMED_WAITING mantains more or less constant, with the extra threads being almost all with TIMED_WAITING.
 
-### sl494
-
-
-From the interpretation of the node sl494, here:
-
-<img src="..\data\interpreted\status_thread_count_by_timestamps_sl494.svg" alt="sl494.svg"/>
-
-We can see that the same holds true, noting that the extra overload the node has before the other is activated is also due to threads with the status TIMED_WAITING.
 
 ### Notes
 
-We can see that, if there is an optimization to be made, it will be probably be showed by the threads with the status TIMED_WAITING.
+Is the rise of the TIMED WAITING threads a problem?
 
 A question to be made is why there are no more threads with RUNNABLE status, this means that as requests increase, the capability of concurrently processing requests does not increase, only the number of queued tasks?
 
 
-## Evolution of threads per category
+## Evolution status of threads per category
 
+### Tomcat
 
+<img src="..\data\interpreted\diagrams\evol_of_state_for_tomcat.svg"/>
 
-## Evolution of threads per status
+For tomcat exec:
+
+<img src="..\data\interpreted\diagrams\evol_of_state_for_tomcat_exec.svg"/>
+
+For tomcat exec without the TIMED WAITING threads:
+
+<img src="..\data\interpreted\diagrams\evol_of_state_for_tomcat_exec_no_timed_waiting.svg"/>
+
+We can see that most of the TIMED WAITING threads of tomcat and the system in a whole come from tomcat exec threads. These threads quickly increase to values above 100, making at every point in the lifetime of the services more than half of the threads running. A small percentage of them are running, and there are points where some are WAITING.
+
+Are the WAITING threads a problem? Why are they WAITING? When we zoom in, we see that until 03:00, there are a few, 1-4 threads, either BLOCKED or RUNNABLE, which seems healthy. Beyound that point, the number of WAITING threads rises to 10. This is weird because it is after the peak of number of threads in the system, actually when they start reducing, and there are no exec threads in TIMED_WAITING state. Later we take notice that these are all executing `java.util.concurrent.LinkedBlockingQueue.take`.
+
+Nevertheless, these are TIMED_WAITING threads. Are they waiting for something, and that wait is causing a bottleneck? Or are these threads simply waiting for a request, a task, that does not yet exist? Is it possible that too much of these idle threads were spawned prematurely, and they're stopping more relevant threads from being spawned?
+
+### LLEN
+
+<img src="..\data\interpreted\diagrams\evol_of_state_for_llen.svg"/>
+
+<img src="..\data\interpreted\diagrams\evol_of_state_for_llen_only_blocked.svg"/>
+
+We can see that the number of RUNNABLE and WAITING threads of LLEN are more or less always the same, peaking above 16. It is not a big percentage of the load, but the general form matches its pattern.
+
+Later we understand that reading threads are the ones in the RUNNABLE state, and writing threads are WAITING.
+
+### Notes
+
+## Evolution of categories of threads of status
 
 ### Timed waiting threads
 
-From the interpretation of the number of time_waiting threads per thread category in the graph:
+<img src="..\data\interpreted\diagrams\evol_of_cat_of_timed_waiting.svg"/>
 
-<img src="..\data\interpreted\status_time_waiting_thread_count_by_timestamps.svg" alt="sl494.svg"/>
+We can see that most of the load comes from tomcat, peaking with more than 100 threads. It means that a big percentage of threads of any given moment are times waiting tomcat threads.
 
-We cam see that the extra number of threads all come from TOMCAT.
-
-This could mean a focus in the study of the threads of that category:
-
-* http-nio-7012...
-
-  * BlockPoller
-  * ClientPoller
-  * Acceptor
-
-* Catalina-utility-<?>
-
-## Last custom call
-
-From the interpretation of the number, for each unique value in custom_call, of threads that were with that call at snapshot time:
-
-<img src="..\data\interpreted\thread_count_by_last_custom_call.svg" alt="sl494.svg"/>
-
-We can see that the increase, in the case of last custom calls, is on `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.borrowSession`
-
-A bit more irrelevant, but still present, is `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.callServiceGeneric`
-
-## Last call
+### Runnable threads
 
 
-From the interpretation of the number, for each unique value in last call, of threads that were with that call at snapshot time:
+<img src="..\data\interpreted\diagrams\evol_of_cat_of_runnable.svg"/>
 
-<img src="..\data\interpreted\thread_count_by_last_call.svg" alt="sl494.svg"/>
+We can see that there is a pattern close to the load we're receiving, comming from LEEN. It peaks only at 18 threads, which is relatively small.
+
+### Waiting threads
+
+<img src="..\data\interpreted\diagrams\evol_of_cat_of_waiting.svg"/>
+
+We can see that there is a pattern close to the load we're receiving, comming from LEEN. It peaks only at 17 threads, which is relatively small.
+
+### Notes
+
+Conjointly, the LLEN Runnable and Waiting threads increase to a peak of 35, mantaining more or less the same number.
+
+## Last custom call of threads evolution
+
+<img src="..\data\interpreted\diagrams\evol_of_last_custom_call.svg"/>
+
+We can see that the increase, in the case of last custom calls, is on `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.borrowSession`, which peaks at 80 and is more or leass always the highest number. Even so, it does not seem to follow any specific pattern, and so it is not worth that much attention. 
+
+<img src="..\data\interpreted\diagrams\evol_of_last_custom_call_no_borrow.svg"/>
+
+Looking without it, it is easy to notice that no specific pattern seems to be also followed by the other function calls. 
+
+Interestingly, `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.callServiceGeneric` is the second highest custom call present, peaking at 15. It is noticeble that it seems to increase with the load before peaking.
+
+### Notes
+
+Maybe `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.borrowSession` should follow the same pattern as the increase in load, but some bottleneck is not letting it? 
+
+As we'll notice earlier, it seems like `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.borrowSession` is part of `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.callServiceGeneric` execution. A question to be made is: Does the condition that usually stops `callServiceGeneric` from moving happens before or after the execution of `borrowSession`?
+
+
+## Last call of threads evolution
+
+<img src="..\data\interpreted\diagrams\evol_of_last_non_custom_call.svg"/>
 
 We can see that most of the increase is on the `java.util.concurrent.LinkedBlockingQueue.poll`, spiking up to 113 threads doing it. This does not appear to totally follow the load increase pattern.
 
@@ -136,66 +171,254 @@ Secondly, we have `org.apache.commons.pool2.impl.LinkedBlockingDeque.pollFirst`,
 
 Without those two, we have:
 
-<img src="..\data\interpreted\thread_count_by_last_call_lesser.svg" alt="sl494.svg"/>
+<img src="..\data\interpreted\diagrams\evol_of_last_non_custom_call_no_poll_no_pollfirst.svg"/>
 
 Where we can see, acompanying the server load, `java.net.SocketInputStream.socketRead`, spiking to a maximum of 19 threads doing the method.
 
 Also accompanying the server load, we have `java.util.concurrent.LinkedBlockingQueue.take`, spiking to a maximum of 19 threads.
 
-Taking a deeper look into those threads,
+## Evolution of status of threads with call
 
-<img src="..\data\interpreted\status_of_linkedblockingqueue.take.svg" alt="sl494.svg"/>
+### TuxedoTransaction.borrowSession
 
-We cam see that the increase is due to TOMCAT threads.
 
-<img src="..\data\interpreted\status_of_socketRead.svg" alt="sl494.svg"/>
+<img src="..\data\interpreted\diagrams\evol_of_status_for_call_borrowSession.svg"/>
 
-We can see that socketRead actually spends all of its time as RUNNABLE. A question to be made is, if this is related to processing requests, and it increases with the load, shouldn't it increase more? Peacking at 19 is weird when more than 140 threads. Another thing to note is that this happens in threads classified as "Redis"
+All cases of `TuxedoTransaction.borrowSession` are from TOMCAT threads, brobably TOMCAT_execution threads.
 
-## Look at tomcat threads and their purposes
+Most cases of `TuxedoTransaction.borrowSession` have `org.apache.commons.pool2.impl.LinkedBlockingDeque.pollFirst`, at a TIMED_WAITING state, except for some, in WAITING state, that have the last_call `java.util.concurrent.locks.AbstractQueuedSynchronizer.parkAndCheckInterrupt`.
 
-The threads we currently have classified as "Tomcat" are:
+### TuxedoTransaction.callServiceGeneric
 
-- http-nio-7012...
 
-  - BlockPoller
+<img src="..\data\interpreted\diagrams\evol_of_status_for_call_callServiceGeneric.svg"/>
 
-  - ClientPoller
+All cases of `TuxedoTransaction.callServiceGeneric` are from TOMCAT threads, brobably TOMCAT_execution threads.
 
-  - Acceptor
+Most cases of `TuxedoTransaction.callServiceGeneric` have `bea.jolt.IOBuf.waitOnBuf`, at a TIMED_WAITING state. Some have it in a blocked state. What is it waiting for? Is it waiting for an internal condition of the system or an outside response?
 
-  - exec-*
+There are also cases in WAITING state, that have the last_call `java.util.concurrent.locks.AbstractQueuedSynchronizer.parkAndCheckInterrupt`.
 
-- Catalina-utility-<?>
+There are other last calls, all at a Runnable state, those are:
+- `bea.jolt.NwHdlr.recv` (to notice that it calls `bea.jolt.IOBuf.waitOnBuf`)
+- `ch.qos.logback.classic...`
+- and more
 
-`http-nio-7012-exec-*` threads are the most relevant. They are the threads whose number grows as the system becomes overloaded.
+These are probably irrelevant, finishing quick and being part of the normal execution of the method.
 
-## Last call and Last custom call relations
 
-From the thread relations between last calls and last custom calls, specially when filtered:
+### LinkedBlockingQueue.poll
 
-<img src="..\data\interpreted\last_calls_relations.svg" alt="sl494.svg"/>
+<img src="..\data\interpreted\diagrams\evol_of_status_for_call_linked_poll.svg"/>
 
-<img src="..\data\interpreted\last_calls_relations_filtered.svg" alt="sl494.svg"/>
+The threads that seem to be relevant come from TOMCAT, all in a TIMED_WAITING state. These are most of the threads of the system. Later, it appears that these threads are simply waiting for http requests to be processed.
 
-<img src="..\data\interpreted\last_calls_relations_filtered_custom_rows.svg" alt="sl494.svg"/>
+### LinkedBlockingDeque.pollFirst and TuxedoTransaction.borrowSession
 
-We can see that `java.util.concurrent.LinkedBlockingQueue.poll` has 10388 cases, all of its appearances in our thread dumps, as not being associated with any last custom call.
 
-We can see that `org.apache.commons.pool2.impl.LinkedBlockingDeque.pollFirst`, in all of its 1278 cases, only appears with the last custom call `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.borrowSession`.
+<img src="..\data\interpreted\diagrams\evol_of_status_for_call_linked_pollfirst.svg"/>
 
-Also, `bea.jolt.IOBuf.waitOnBuf`, in all of its 1440 cases, only appears with the last custom call `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.callServiceGeneric`
+All cases of `pollFirst` are from `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.borrowSession`, and are from TOMCAT threads. `TuxedoTransaction.borrowSession` calls this method.
 
-We can note that `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.borrowSession`, which only has TIMED_WAITING and WAITING state:
-- Has in all of its 1278 TIMED_WAITING states a Last call of `org.apache.commons.pool2.impl.LinkedBlockingDeque.pollFirst`
--  Has in all of its 4 WAITING states a Last Call of `java.util.concurrent.locks.AbstractQueuedSynchronizer.parkAndCheckInterrupt`
+### LinkedBlockingQueue.take
 
-We can note that `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.callServiceGeneric`, which has BLOCKED, RUNNABLE, TIMED_WAITING, WAITING states:
-- Has in all of its 1410 TIMED_WAITING states a Last Call of `bea.jolt.IOBuf.waitOnBuf`
+<img src="..\data\interpreted\diagrams\evol_of_status_for_call_linked_take.svg"/>
 
-## Look at threads with relevant last custom calls
+Most of these threads come from TOMCAT.
 
-We'll take a look into where com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.borrowSession and com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.callServiceGeneric are called in the thread dumps, trying to undertand their purpose.
+### SocketRead
+
+<img src="..\data\interpreted\diagrams\evol_of_status_for_call_socket_read.svg"/>
+
+We can see that socketRead spends all of its time as RUNNABLE.
+
+We can also see that the pattern that threads running socketRead of the category LLEN follows the same pattern as the load, peaking at in 16 in nl95v and 17 in sl494.
+
+### getFromQ
+
+<img src="..\data\interpreted\diagrams\evol_of_status_for_call_getFromQ.svg"/>
+
+We can see that getFromQ spends almost all of its time as WAITING, sometimes BLOCKED. All of its threads are from LLEN.
+
+### Notes
+
+## Relevant thread lifetimes
+
+### LLEN Reader thread
+
+Choosing the thread with id 162 in nl95v:
+
+<img src="..\data\interpreted\diagrams\thread_lifetime_nl95v_162_functions.svg"/>
+<img src="..\data\interpreted\diagrams\thread_lifetime_nl95v_162_cpu.svg"/>
+
+This thread spawns at 01:57 and seizes to exist at 03:09.
+
+It only executes `java.net.SocketInputStream.socketRead`.
+
+We can see that this specific LLENReader thread spends most of its life as RUNNABLE, executing socketRead0, and steadily increasing its cpu time from 60 ms to 1660 ms (1.7 seconds). Even so, this is small, having in account that the thread exissted for more than 10 minutes.
+
+### LLEN writer thread
+
+Choosing the thread with id 163 in nl95v:
+
+<img src="..\data\interpreted\diagrams\thread_lifetime_nl95v_161_functions.svg"/>
+<img src="..\data\interpreted\diagrams\thread_lifetime_nl95v_161_cpu.svg"/>
+
+This thread spawns at 01:57 and seizes to exist at 03:09.
+
+It only executes `bea.jolt.OutQ.getFromQ`.
+
+We can see that this specific LLENReader thread spends most of its life as WAITING, executing socketRead0, and steadily increasing its cpu time from 60 ms to 1689 ms (1.7 seconds). Even so, this is small, having in account that the thread exissted for more than 1 hour and 10 minutes.
+
+### Tomcat worker thread
+
+Choosing the thread with id 183 in nl95v:
+
+<img src="..\data\interpreted\diagrams\thread_lifetime_nl95v_183_functions.svg"/>
+<img src="..\data\interpreted\diagrams\thread_lifetime_nl95v_183_cpu.svg"/>
+<img src="..\data\interpreted\diagrams\thread_lifetime_nl95v_183_cpu_since_last.svg"/>
+
+This thread spawns at 01:57 and seizes to exist at 03:03.
+
+It spends most of its time executing `java.util.concurrent.LinkedBlockingQueue.poll` in a TIMED WAITING state. This is means waiting for a request to arrive so it can process it.
+
+It also executes `bea.jolt.IOBuf.waitOnBuf` inside `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.callServiceGeneric`, rarely blocked.
+
+It also executes `org.apache.commons.pool2.impl.LinkedBlockingDeque.pollFirst` inside `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.borrowSession`, always in TIME_WAITING.
+
+The thread goes steadily from 3288 ms at 01:57 to 7141 ms cpu time. This means going from 3 seconds to 7 seconds in more than 1 hour and 6 minutes.
+
+## Evolution of cpu since last per thread category
+
+### Global view
+
+#### Average cpu used in a minute
+
+<img src="..\data\interpreted\diagrams\evol_of_cpu_since_last_all_cats_avg.svg"/>
+
+We can see that the thread category that has the highest "cpu since last" is the category "Generic Thread Pool", peaking close to 2500 ms, or 2.5 seconds per minute.
+
+If we remove generic, tomcat and jvm, we get:
+
+<img src="..\data\interpreted\diagrams\evol_of_cpu_since_last_all_cats_avg_no_generic_no_tomcat.svg"/>
+
+Where we can see the threads in the category of "jaeger" rise and peak at about 80 ms, or 0.08 s average per minute per thread. Bellow are "LLEN", which peak at about 15 ms, or 0.015 s per minute per thread
+
+#### Total cpu used in a minute
+
+<img src="..\data\interpreted\diagrams\evol_of_cpu_since_last_all_cats_total.svg"/>
+<img src="..\data\interpreted\diagrams\evol_of_cpu_since_last_all_cats_total_no_generic.svg"/>
+
+We can see that the category with the highest cummulative "cpu since last" is also the "Generic Thread Pool", peaking at about 13000 ms per minute, or 13s per minute. It is followed by TOMCAT, which peaks above 5000 ms, or 5s per minute. 
+
+Also removing tomcat and jvm internal (which has only one weird peak in nl95v), we have:
+
+<img src="..\data\interpreted\diagrams\evol_of_cpu_since_last_all_cats_total_no_generic_no_tomcat.svg"/>
+
+Where we can see that LLEN follows the same pattern, peaking close to 400 ms, or 0.4s per minute.
+
+We also see jaeger following the same pattern, peaking at 160 ms, or 0.2s per minute.
+
+### TOMCAT
+
+The sum is:
+<img src="..\data\interpreted\diagrams\evol_of_cpu_since_last_tomcat_sum.svg"/>
+
+We can see that the sum seizes to increase at the peak of the services.
+
+The average is:
+<img src="..\data\interpreted\diagrams\evol_of_cpu_since_last_tomcat_avg.svg"/>
+
+We can see an increase at the begining of the service, and then the tomcat threads become stable, close to 50 of ms / minute.
+
+### LLEN
+
+The average is:
+<img src="..\data\interpreted\diagrams\evol_of_cpu_since_last_tomcat_avg.svg"/>
+
+We can see an increase at the begining of the service, peaking at 15 ms / minute, then reducing close to 10 ms / minute.
+
+## Some more specific data
+
+This space is for data that is got due to specific suspicious information
+
+### The TOMCAT threads
+
+The TIMED_WAITING threads are all executing `java.util.concurrent.LinkedBlockingQueue.poll`.
+
+For an example of `java.util.concurrent.LinkedBlockingQueue.poll`, in nl95v, in timestamp 02:02:57:
+
+	"http-nio-7012-exec-128" #302 daemon prio=5 os_prio=0 cpu=11.77ms elapsed=12.61s tid=0x00007f01340a3800 nid=0x10a5 waiting on condition  	[0x00007f00b49da000]
+	   java.lang.Thread.State: TIMED_WAITING (parking)
+		at java.util.concurrent.LinkedBlockingQueue.poll(java.base@11.0.10/LinkedBlockingQueue.java:458)
+		at org.apache.tomcat.util.threads.TaskQueue.poll(TaskQueue.java:90)
+		at org.apache.tomcat.util.threads.TaskQueue.poll(TaskQueue.java:33)
+		at java.util.concurrent.ThreadPoolExecutor.getTask(java.base@11.0.10/ThreadPoolExecutor.java:1053)
+		at java.util.concurrent.ThreadPoolExecutor.runWorker(java.base@11.0.10/ThreadPoolExecutor.java:1114)
+		at java.util.concurrent.ThreadPoolExecutor$Worker.run(java.base@11.0.10/ThreadPoolExecutor.java:628)
+		at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:61)
+		at java.lang.Thread.run(java.base@11.0.10/Thread.java:834)
+
+It seems like it is simply trying to get a task, an http request to process.
+
+Regarding the WAITING threads,
+
+<img src="..\data\interpreted\diagrams\tomcat_waiting_evol_of_state_and_funs.svg"/>
+
+We can see that the increase of waiting threads is due to them executing `java.util.concurrentLinkedBlockingQueue.take`.
+
+We can also see in an example stacktrace what it is doing:
+
+
+	"http-nio-7012-exec-115" #289 daemon prio=5 os_prio=0 cpu=3007.57ms elapsed=4346.35s tid=0x00007f0134040000 nid=0x1098 waiting on condition  [0x00007f016e6c5000]
+	   java.lang.Thread.State: WAITING (parking)
+		at java.util.concurrent.LinkedBlockingQueue.take(java.base@11.0.10/LinkedBlockingQueue.java:433)
+		at org.apache.tomcat.util.threads.TaskQueue.take(TaskQueue.java:108)
+		at org.apache.tomcat.util.threads.TaskQueue.take(TaskQueue.java:33)
+		at java.util.concurrent.ThreadPoolExecutor.getTask(java.base@11.0.10/ThreadPoolExecutor.java:1054)
+		at java.util.concurrent.ThreadPoolExecutor.runWorker(java.base@11.0.10/ThreadPoolExecutor.java:1114)
+		at java.util.concurrent.ThreadPoolExecutor$Worker.run(java.base@11.0.10/ThreadPoolExecutor.java:628)
+		at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:61)
+		at java.lang.Thread.run(java.base@11.0.10/Thread.java:834)
+
+It seems like what happened was simply that requests stopped appearing, and so the tomcat threads started reducing in number, and those that remain simply use a method that gets the next task while waiting indefinetly, instead of using a timeout.
+
+
+### LLEN threads
+
+For the case of `java.net.SocketInputStream.socketRead0`, the one that is RUNNABLE, we have:
+
+	"LLENwReader" #154 daemon prio=5 os_prio=0 cpu=766.65ms elapsed=4630.65s tid=0x00007f011c00c800 nid=0x5a5 runnable  [0x00007f00b79f8000]
+	   java.lang.Thread.State: RUNNABLE
+		at java.net.SocketInputStream.socketRead0(java.base@11.0.10/Native Method)
+		at java.net.SocketInputStream.socketRead(java.base@11.0.10/SocketInputStream.java:115)
+		at java.net.SocketInputStream.read(java.base@11.0.10/SocketInputStream.java:168)
+		at java.net.SocketInputStream.read(java.base@11.0.10/SocketInputStream.java:140)
+		at java.io.DataInputStream.readFully(java.base@11.0.10/DataInputStream.java:200)
+		at bea.jolt.NwReader.run(NwHdlr.java:4001)
+
+This is reading something from an internet socket, what?
+It is called by, bea.jolt.NwReader.run, what is that?
+Why does it seem like the number of threads running these are capped?
+
+For the case of `bea.jolt.OutQ.getFromQ`, the one that is WAITING, we have:
+
+	"LLENwWriter" #155 daemon prio=5 os_prio=0 cpu=671.72ms elapsed=4630.65s tid=0x00007f011c00f000 nid=0x5a6 in Object.wait()  [0x00007f00b78f7000]
+	   java.lang.Thread.State: WAITING (on object monitor)
+		at bea.jolt.OutQ.getFromQ(OutQ.java:89)
+		- waiting to re-lock in wait() <0x00000000a258d730> (a bea.jolt.OutQ)
+		at bea.jolt.NwWriter.run(NwHdlr.java:4366)
+
+This is writing, what? Where is it getting the information?
+Is it getting using `bea.jolt.OutQ.getFromQ` and then writting that information? From what queue does it get?
+
+How are these two threads connected?
+Are they responsible to communicate with the tuxedo backend?
+
+If the threads are connected, and one is reading a message for the other to write in another point, it seems like the thread writting either is much faster (and so it is always WAITING), or there is a problem in the logic making it being unecessarely in the WAITING state.
+
+
+### The TUXEDO execution of TOMCAT worker threads
 
 For an example of com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.callServiceGeneric, in nl95v, in timestamp 02:02:57:
 
@@ -283,16 +506,9 @@ For an example of com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.callSer
 		at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:61)
 		at java.lang.Thread.run(java.base@11.0.10/Thread.java:834)
 
-We can see:
-- It is executed by a Tomcat worker thread
-- the last custom call is for callServiceGeneric
-- given its name, it is supposed to call the tuxedo external service
-- the last call is bea.jolt.IOBuf.waitOnBuf
-- there are two locks:
-	- one of type org.apache.tomcat.util.net.NioEndpoint$NioSocketWrapper in function call org.apache.tomcat.util.net.SocketProcessorBase.run, which the thread has locked
-	- another of type bea.jolt.IOBuf in function call bea.jolt.IOBuf.waitOnBuf, which the thread is waiting for
+It seems like `bea.jolt.JoltRemoteService.call` calls the jolt remote service, and, later in its execution, it gets stuck at `bea.jolt.IOBuf.waitOnBuf`, in a condition of type `bea.jolt.IOBuf`. Seems like it is waiting for data to read. This can mean like this is an execution that already passed through `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.borrowSession`, and is waiting for a response.
 
-This thread appears to be handling an HTTP request that has already invoked the Tuxedo service and is currently blocked waiting for a response from the backend through Jolt. While waiting, it occupies a Tomcat request-processing thread.
+Another thing to note is that it locks a resource earlier, at `org.apache.tomcat.util.net.SocketProcessorBase.run`, of type `org.apache.tomcat.util.net.NioEndpoint$NioSocketWrapper`.
 
 For an example of `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.borrowSession`, in nl95v, in timestamp 02:08:07:
 
@@ -377,178 +593,14 @@ For an example of `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.borrow
 		at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:61)
 		at java.lang.Thread.run(java.base@11.0.10/Thread.java:834)
 
-We can see:
-- It is executed by a Tomcat worker thread
-- the last custom call is for borrowSession
-- callServiceGeneric is present in the stacktrace, borrowSession is part of its execution
-- given its name, it is borrowing a session to call the external service
-- the last call is at org.apache.commons.pool2.impl.LinkedBlockingDeque.pollFirst (which is one of the last calls of interest)
-- there are two locks:
-	- one of type org.apache.tomcat.util.net.NioEndpoint$NioSocketWrapper in function call org.apache.tomcat.util.net.SocketProcessorBase.run, which the thread has locked
-	- another which is simply visible through the "waiting on condition"
 
+Something we can understand is that, if sessions are limited, this would become a bottleneck. In that case, `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.borrowSession` would have a variable number of threads running it, with the other executions of `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.callServiceGeneric` being capped. This is veridied, indicating that this is the problem.
 
-This thread appears to be handling an incoming HTTP request that is attempting to obtain a Jolt session from the Commons Pool before invoking the Tuxedo service. The call to GenericObjectPool.borrowObject() is blocked while waiting for an available session, indicating that all pooled sessions are currently in use. Since the thread continues to occupy a Tomcat request-processing thread while waiting, increasing request latency or session pool exhaustion causes more request threads to accumulate, which matches the observed growth in http-nio-7012-exec-* threads over time.
+`org.apache.commons.pool2.impl.LinkedBlockingDeque.pollFirst` is the last call.
 
-## Look at threads with relevant last calls
+The problem of contetion seems to exist here:
 
-For an example of `java.util.concurrent.LinkedBlockingQueue.poll`, in nl95v, in timestamp 02:02:57:
+<img src="..\data\interpreted\diagrams\evol_of_status_funs_of_tomcat.svg"/>
 
-	"http-nio-7012-exec-128" #302 daemon prio=5 os_prio=0 cpu=11.77ms elapsed=12.61s tid=0x00007f01340a3800 nid=0x10a5 waiting on condition  	[0x00007f00b49da000]
-	   java.lang.Thread.State: TIMED_WAITING (parking)
-		at java.util.concurrent.LinkedBlockingQueue.poll(java.base@11.0.10/LinkedBlockingQueue.java:458)
-		at org.apache.tomcat.util.threads.TaskQueue.poll(TaskQueue.java:90)
-		at org.apache.tomcat.util.threads.TaskQueue.poll(TaskQueue.java:33)
-		at java.util.concurrent.ThreadPoolExecutor.getTask(java.base@11.0.10/ThreadPoolExecutor.java:1053)
-		at java.util.concurrent.ThreadPoolExecutor.runWorker(java.base@11.0.10/ThreadPoolExecutor.java:1114)
-		at java.util.concurrent.ThreadPoolExecutor$Worker.run(java.base@11.0.10/ThreadPoolExecutor.java:628)
-		at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:61)
-		at java.lang.Thread.run(java.base@11.0.10/Thread.java:834)
-
-We can see:
-- It is executed by a Tomcat worker thread
-
-For an example of `org.apache.commons.pool2.impl.LinkedBlockingDeque.pollFirst`, it is unecessary, as it only appears with the already studied `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.borrowSession` 
-
-For an example of `java.util.concurrent.LinkedBlockingQueue.poll`, in nl95v, in timestamp 02:02:57:
-
-	"LLENwReader" #154 daemon prio=5 os_prio=0 cpu=766.65ms elapsed=4630.65s tid=0x00007f011c00c800 nid=0x5a5 runnable  [0x00007f00b79f8000]
-	   java.lang.Thread.State: RUNNABLE
-		at java.net.SocketInputStream.socketRead0(java.base@11.0.10/Native Method)
-		at java.net.SocketInputStream.socketRead(java.base@11.0.10/SocketInputStream.java:115)
-		at java.net.SocketInputStream.read(java.base@11.0.10/SocketInputStream.java:168)
-		at java.net.SocketInputStream.read(java.base@11.0.10/SocketInputStream.java:140)
-		at java.io.DataInputStream.readFully(java.base@11.0.10/DataInputStream.java:200)
-		at bea.jolt.NwReader.run(NwHdlr.java:4001)
-
-	we also have
-
-	"LLENwWriter" #155 daemon prio=5 os_prio=0 cpu=671.72ms elapsed=4630.65s tid=0x00007f011c00f000 nid=0x5a6 in Object.wait()  [0x00007f00b78f7000]
-	   java.lang.Thread.State: WAITING (on object monitor)
-		at bea.jolt.OutQ.getFromQ(OutQ.java:89)
-		- waiting to re-lock in wait() <0x00000000a258d730> (a bea.jolt.OutQ)
-		at bea.jolt.NwWriter.run(NwHdlr.java:4366)
-
-
-
-## Look into interesting functions
-
-Right now, given the numbers, the focus should be on `java.util.concurrent.LinkedBlockingQueue.poll` and where it is present. So, for that, we'll take a look into the last function on the stacktrace:
-- `java.util.concurrent.LinkedBlockingQueue.poll`
-- `org.apache.tomcat.util.threads.TaskQueue.poll`
-
-the poll method of [LinkedBlockingQueue](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/LinkedBlockingQueue.html), which is an optionally-bounded blocking queue based on linked nodes, retrieves and removes the head of this queue, or returns null if this queue is empty.
-
-
-the poll method of [TaskQueue](https://tomcat.apache.org/tomcat-10.0-doc/api/org/apache/tomcat/util/threads/TaskQueue.html), which is a task queue specifically designed to run with a thread pool executor, Retrieves and removes the head of this queue, or returns null if this queue is empty.
-
-This shows what most threads are doing at the most critical moment: They are trying to get a task from the task queue. The reason they don't receive a task is simply because there isn't any.
-
-Then there are two problems this could point to:
-- Either threads that should be "abandoned" are not, or Tomcat should not produce so many threads in bursts to handle requests.
-- Something is failing to produce the tasks to Tomcat.
-
-There are two points in callServiceGeneric where we find TIMED_WAITING threads.
-
-Given that a stacktrace where `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.borrowSession` appears, `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.callServiceGeneric` also appears before it, we'll start by looking there:
-- `at org.apache.commons.pool2.impl.LinkedBlockingDeque.pollFirst`
-- `at org.apache.commons.pool2.impl.GenericObjectPool.borrowObject`
-- `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.borrowSession`
-- `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.callServiceGeneric`
-- `com.crossjointest.cbs.tuxedo.controller.TuxedoAdapterController$$FastClassBySpringCGLIB$$a341162e.invoke`
-- ...spring methods
-- `org.apache.tomcat.util.net.SocketProcessorBase.run` (locks)
-
-The pollFirst method of [LinkedBlockingDequeue](https://commons.apache.org/proper/commons-pool/xref/org/apache/commons/pool2/impl/LinkedBlockingDeque.html), which is an optionally-bounded BlockingDequeue based on linked nodes, removes the first element of the queue and returns it.
-
-The borrowObject method of [GenericObjectPool](https://commons.apache.org/proper/commons-pool/apidocs/org/apache/commons/pool2/impl/GenericObjectPool.html), which is a configurable ObjectPool implementation, borrows an object from the pool using the specific waiting time which only applies if BaseGenericObjectPool.getBlockWhenExhausted() is true.
-
-`com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.borrowSession` seems to be borrowing a Jolt session from an Apache Commons Pool before the request can be sent to the Tuxedo backend. Since it ultimately calls `GenericObjectPool.borrowObject()`, the thread blocks whenever no session is immediately available.
-
-`com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.callServiceGeneric` is responsible for performing the actual remote call to the Tuxedo service.
-
-The Spring methods  receive the HTTP request, dispatch it to the controller, and eventually return the generated response.
-
-The Tomcat methods parse the HTTP request, assign the request to one of the `http-nio-7012-exec-*` worker threads, and keep that worker thread occupied until the complete response has been produced.
-
-
-Now, when `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.callServiceGeneric` is stuck, it is on `bea.jolt.IOBuf.waitOnBuf`, so we should take attention to those methods.
-- `bea.jolt.IOBuf.waitOnBuf`
-- `bea.jolt.IOBuf` lock
-- `bea.jolt.JoltRemoteService.call`
-- `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.callServiceGeneric`
-
-[JoltRemoteService](https://docs.oracle.com/cd/E13203_01/tuxedo/tux80/javadoc/jolt/javadoc/bea/jolt/JoltRemoteService.html#JoltRemoteService(java.lang.String,%20bea.jolt.Session)) provides an implementation of the Tuxedo synchronous Request/Reply communication model. Jolt treats each Tuxedo service as a remote service, and each service has its input and output parameters. Typically, the user sets the input parameters through the various setXXX and addXXX methods, then invokes the call() method. Upon successful completion, the user retreives the results through the various getXXX methods.
-
-`bea.jolt.IOBuf.waitOnBuf` could be waiting for the response, a more completed method so to say.
-
-## Tomcat threads lifetime
-
-Here we'll take attention to what are, for a thread name, the processes we see it taking.
-
-<img src="..\data\interpreted\thread_timelife_nl95v_http-nio-7012-exec-100.svg" alt="sl494.svg"/>
-
-Here we take a look into the thread http-nio-7012-exec-100 in node nl95v.
-
-It is spawned at 02:02 and dies at 03:03.
-
-It is hard to understand order of methods, as some information may be lost by thread dumps timings.
-
-- `java.util.concurrent.LinkedBlockingQueue.poll`, waiting for a task to be available for it. This is the method were it spends the most time
-
-- `at org.apache.commons.pool2.impl.LinkedBlockingDeque.pollFirst`, in `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.borrowSession`, in callGenericService.
-
-- `bea.jolt.IOBuf.waitOnBuf` in `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.callServiceGeneric`.
-
-An interesting thing is that it seems to rare to spend more than 1 minute in any method besides `java.util.concurrent.LinkedBlockingQueue.poll`.
-
-This seems like healthy behavior.
-
-
-<img src="..\data\interpreted\thread_timelife_nl95v_http-nio-7012-exec-102.svg" alt="sl494.svg"/>
-
-Here we take a look into the thread http-nio-7012-exec-102 in node nl95v.
-
-It is spawned at 02:02 and dies at 03:31.
-
-In general, it follows the same pattern.
-
-An interesting thing is that it spends all its time between 03:06 and 03:31 running `java.util.concurrentLinkedBlockingQueue.take` This seems to be after the server reset.
-
-
-## Current understanding of the project
-
-The application consists of two Spring Boot microservice instances exposing HTTP endpoints. Each incoming HTTP request is processed by a Tomcat worker thread (`http-nio-7012-exec-*`), routed through the Spring MVC pipeline to a controller, and eventually reaches `TuxedoTransaction.callServiceGeneric`.
-
-Before contacting the backend, the service borrows a Jolt session from an Apache Commons Pool (`borrowSession`). Once a session is available, it performs a synchronous Jolt request to the Oracle Tuxedo service (`JoltRemoteService.call`). The Tomcat worker thread remains blocked until the Tuxedo service returns a response, after which the response propagates back through Spring and Tomcat to the HTTP client.
-
-Overall, the request pipeline is:
-
-```
-HTTP Client
-    ->
-Tomcat (http-nio worker thread)
-    ->
-Spring MVC
-    ->
-Controller
-    ->
-TuxedoTransaction.borrowSession()
-    ->
-Apache Commons Pool (Jolt session)
-    ->
-TuxedoTransaction.callServiceGeneric()
-    ->
-Jolt
-    ->
-Oracle Tuxedo
-    ->
-Response
-    ->
-Spring MVC
-    ->
-Tomcat
-    ->
-HTTP Client
-```
+As, while most TOMCAT threads are TIMED_WAITING running `java.util.concurrent.LinkedBlockingQueue.poll`, there exists for example a spike in nl95v of TIMED_WAiting running `borrowSession` at 02:21, going up to 78. In the next minute, the execution is normal, but something to note is that `callServiceGeneric` never rise that high.
 

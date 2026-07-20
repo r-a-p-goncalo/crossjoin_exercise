@@ -37,54 +37,13 @@ We can take attention to the names / prefixes of the thread names, and separatin
 * VM Periodic Task Thread
 * Attach Listener
 
-**Garbage Collection (G1 GC):**
+...
 
-* GC Thread#0
-* G1 Main Marker
-* G1 Conc#0
-* G1 Refine#0
-* G1 Young RemSet Sampling
+## Packages present
 
-**Tomcat (HTTP Server):**
-
-* http-nio-7012...
-
-  * BlockPoller
-  * ClientPoller
-  * Acceptor
-  * exec
-
-* Catalina-utility-<?>
-
-**Spring Framework:**
-
-* spring.cloud.inetutils
-
-**Application Worker Threads:**
-
-* container-<?>
-* pool-2-thread-2
-* AsynchThread-<?>
-
-**Redis (Lettuce Client):**
-
-* lettuce-eventExecutorLoop-1-1
-* LLENw...
-
-  * Reader
-  * Writer
-
-**Connection Pool Management:**
-
-* commons-pool-evictor-thread
-
-**AMQP / RabbitMQ:**
-
-* AMQP Connection <?>
-
-**Distributed Tracing (Jaeger):**
-
-* jaeger.RemoteReporter...
-
-  * QueueProcessor
-  * FlushTimer
+We can see, beyond java native libraries:
+* Spring
+* Tomcat
+* Redis
+* Jolt
+* Tuxedo

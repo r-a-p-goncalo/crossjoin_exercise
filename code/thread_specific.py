@@ -37,12 +37,12 @@ def get_thread_subcategory_from_name(
     return thread_category
 
 
-def interpret_single_thread_info(thread_dump_specific_text : str) -> dict:
+def interpret_single_thread_info(current_csv, current_info, thread_dump_specific_text : str) -> dict:
     '''
     Returns a row for the thread text received
     '''
 
-    info = {}
+    info = current_info
 
     match = re.search(r'^"([^"]+)"', thread_dump_specific_text)
 
@@ -61,7 +61,7 @@ def interpret_single_thread_info(thread_dump_specific_text : str) -> dict:
     info["thread_category"] = get_thread_category_from_name(
         info["thread_name"]
     )
-    
+
     info["thread_subcategory"] = get_thread_subcategory_from_name(
         info["thread_name"],
         info["thread_category"],

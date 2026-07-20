@@ -4,11 +4,10 @@
 
 There is an application with a Microservices architecture.
 
-2 instances of a service running spring boot, each receiving HTTP requests and communicating with a single Tuxedo service using Jolt.
+The reported problem is that the service, while dealing with the morning load, is stable. As this load increases, there starts to exist degradation in response times until a point where the service is restarted. When the service is restarted, performance is then acquired again, but, over times, the same pattern appears. It heals only when the load reduces again.
 
-As load increases, times of requests increase until the services are forced to restart. After, each pattern continues.
+There were thread dumps taken, for the two services, accross a time interval, essentialy one per minute per service.
 
-There are thread dumps of both services, which are to be studied.
 
 ## Objective
 
@@ -32,8 +31,10 @@ Give a suggestion on the solution
 
 ## Tips
 
+Contention Analysis.
+
 Last Custom Call is more important, as it is the client's code
 
-Make sure to think about queueing theory and System with high competing order requests
+Make sure to think about queueing theory and System with high competing order requests. How does the concurrency of the received requests work?
 
 A microservice is just a small webserver, with a built-in tomcat and receiving requests
