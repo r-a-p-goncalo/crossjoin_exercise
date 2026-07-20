@@ -1,6 +1,6 @@
 import re
 
-from code.thread_category_patterns import THREAD_CATEGORY_PATTERNS
+from thread_category_patterns import THREAD_CATEGORY_PATTERNS, SUBCATEGORIES
 
 
 
@@ -11,6 +11,31 @@ CUSTOM_CALL_PREFIXES = (
     "com.company",
      "com.crossjointest."
 )
+
+def get_thread_subcategory_from_name(
+    thread_name: str,
+    thread_category: str,
+) -> str:
+    """
+    Returns the thread subcategory.
+
+    If no subcategory matches, returns the category itself.
+    """
+
+    if thread_name is None or thread_category is None:
+        return None
+
+    patterns = SUBCATEGORIES.get(thread_category)
+
+    if patterns is None:
+        return thread_category
+
+    for pattern, subcategory in patterns:
+        if re.match(pattern, thread_name):
+            return subcategory
+
+    return thread_category
+
 
 def interpret_single_thread_info(thread_dump_specific_text : str) -> dict:
     '''
@@ -33,8 +58,14 @@ def interpret_single_thread_info(thread_dump_specific_text : str) -> dict:
         info["thread_name"] = None
         info["thread_id"] = None
     
-        info["thread_category"] = get_thread_category_from_name(info["thread_name"])
-
+    info["thread_category"] = get_thread_category_from_name(
+        info["thread_name"]
+    )
+    
+    info["thread_subcategory"] = get_thread_subcategory_from_name(
+        info["thread_name"],
+        info["thread_category"],
+    )
 
     match = re.search(
         r"java\.lang\.Thread\.State:\s+([A-Z_]+)",

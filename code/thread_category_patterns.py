@@ -21,6 +21,7 @@ THREAD_CATEGORY_PATTERNS = [
     (r"^G1 Young RemSet Sampling$", "Garbage Collector"),
 
     # Tomcat
+    (r"^container-\d+$", "Tomcat"),
     (r"^http-nio-\d+-Acceptor$", "Tomcat"),
     (r"^http-nio-\d+-ClientPoller$", "Tomcat"),
     (r"^http-nio-\d+-BlockPoller$", "Tomcat"),
@@ -29,16 +30,18 @@ THREAD_CATEGORY_PATTERNS = [
 
     # Spring
     (r"^spring\.cloud\.inetutils$", "Spring"),
+    
 
-    # Application
-    (r"^container-\d+$", "Application"),
+    # Generic Thread Pool
+    (r"^AsynchThread-\d+$", "Generic Thread Pool"),
     (r"^pool-\d+-thread-\d+$", "Application"),
-    (r"^AsynchThread-\d+$", "Application"),
 
     # Redis
-    (r"^lettuce-.*", "Redis"),
-    (r"^LLEN.*Reader$", "Redis"),
-    (r"^LLEN.*Writer$", "Redis"),
+    (r"^lettuce-.*", "Lettuce"),
+
+    # LLEN
+    (r"^LLEN.*Reader$", "LLEN"),
+    (r"^LLEN.*Writer$", "LLEN"),
 
     # Commons Pool
     (r"^commons-pool-evictor-thread$", "Connection Pool"),
@@ -50,3 +53,12 @@ THREAD_CATEGORY_PATTERNS = [
     (r"^jaeger\.RemoteReporter.*QueueProcessor$", "Jaeger"),
     (r"^jaeger\.RemoteReporter.*FlushTimer$", "Jaeger"),
 ]
+
+
+SUBCATEGORIES = {
+
+    "Tomcat" : [
+        (r"^http-nio-\d+-exec-\d+$", "Tomcat_Execution"),
+    ]
+
+}

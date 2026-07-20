@@ -2,9 +2,10 @@ import csv
 from datetime import datetime
 import os
 import re
-from code.thread_specific import get_thread_category_from_name, is_custom_call, interpret_single_thread_info
+from thread_specific import get_thread_category_from_name, is_custom_call, interpret_single_thread_info
 
-OUTPUT_DIRECTORY = "..\\data\\interpreted"
+OUTPUT_DIRECTORY = "data\\interpreted\\csv"
+THREAD_TUMPS_DIRECTORY = "data\\crossjoin_td_test"
 
 GENERAL_THREAD_DUMP_NAME = "thread_dump_headers"
 GENERAL_THREAD_DUMP_ROWS_BASIC = ["filename", "service_name", "service_role", "kubernetes_hash", "pod_suffix", "timestamp"]
@@ -14,7 +15,7 @@ GENERAL_THREAD_DUMP_ROWS = [*GENERAL_THREAD_DUMP_ROWS_BASIC,
 
 TRHEAD_SPECIFIC_DUMP_NAME = "thread_specific"
 THREAD_SPECIFIC_DUMP_ROWS = [*GENERAL_THREAD_DUMP_ROWS_BASIC,
-                             "thread_name", "thread_category", "thread_id", "status", "cpu_ms", "time_elapsed_s", "last_call", "last_custom_call"]
+                             "thread_name", "thread_category", "thread_subcategory","thread_id", "status", "cpu_ms", "time_elapsed_s", "last_call", "last_custom_call"]
 
 
 
@@ -126,7 +127,7 @@ def main():
     '''
 
     # directory where thread_dumps are stored
-    thread_dumps_directory = "..\\data\\crossjoin_td_test"
+    thread_dumps_directory = THREAD_TUMPS_DIRECTORY
 
     # thread_dump_files
     thread_dump_file_names = [
