@@ -17,13 +17,9 @@ Spring MVC
     ->
 Controller
     ->
-TuxedoTransaction.borrowSession()
-    ->
-Apache Commons Pool (Jolt session)
-    ->
 TuxedoTransaction.callServiceGeneric()
     ->
-Jolt
+TuxedoTransaction.borrowSession()
     ->
 Oracle Tuxedo
     ->
@@ -69,7 +65,7 @@ There does not appear to exist a problem with internal processing, as cpu times 
 
 ## What is the problem
 
-Wwhile most TOMCAT threads are TIMED_WAITING are running `java.util.concurrent.LinkedBlockingQueue.poll`, there exists for example a spike in nl95v of TIMED_WAiting running `borrowSession` at 02:21, going up to 78. In the next minute, the execution is normal, but something to note is that `callServiceGeneric` never rises that high, looking like it is capped. This would create delays in users receiving responses.
+While most TOMCAT threads are TIMED_WAITING are running `java.util.concurrent.LinkedBlockingQueue.poll`, there exists for example a spike in nl95v of TIMED_WAiting running `borrowSession` at 02:21, going up to 78. In the next minute, the execution is normal, but something to note is that `callServiceGeneric` never rises that high, looking like it is capped. This would create delays in users receiving responses.
 
 The problem simply seems to be a scarcity of jolt sessions, which create a bottleneck at `borrowSession`.
 

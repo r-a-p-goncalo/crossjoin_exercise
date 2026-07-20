@@ -602,5 +602,4 @@ The problem of contetion seems to exist here:
 
 <img src="..\data\interpreted\diagrams\evol_of_status_funs_of_tomcat.svg"/>
 
-As, while most TOMCAT threads are TIMED_WAITING running `java.util.concurrent.LinkedBlockingQueue.poll`, there exists for example a spike in nl95v of TIMED_WAiting running `borrowSession` at 02:21, going up to 78. In the next minute, the execution is normal, but something to note is that `callServiceGeneric` never rise that high.
-
+While most TOMCAT threads are TIMED_WAITING are running `java.util.concurrent.LinkedBlockingQueue.poll`, there exists for example a spike in nl95v of TIMED_WAiting running `borrowSession` at 02:21, going up to 78. In the next minute, the execution is normal, but something to note is that `callServiceGeneric` never rises that high, looking like it is capped. This would create delays in users receiving responses.
