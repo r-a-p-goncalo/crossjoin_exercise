@@ -130,13 +130,13 @@ We can see that most of the load comes from tomcat, peaking with more than 100 t
 
 <img src="..\data\interpreted\diagrams\evol_of_cat_of_runnable.svg"/>
 
-We can see that there is a pattern close to the load we're receiving, comming from LEEN. It peaks only at 18 threads, which is relatively small.
+We can see that there is a pattern close to the load we're receiving, comming from LLEN. It peaks only at 18 threads, which is relatively small.
 
 ### Waiting threads
 
 <img src="..\data\interpreted\diagrams\evol_of_cat_of_waiting.svg"/>
 
-We can see that there is a pattern close to the load we're receiving, comming from LEEN. It peaks only at 17 threads, which is relatively small.
+We can see that there is a pattern close to the load we're receiving, comming from LLEN. It peaks only at 17 threads, which is relatively small.
 
 ### Notes
 
@@ -287,6 +287,23 @@ It also executes `bea.jolt.IOBuf.waitOnBuf` inside `com.crossjointest.cbs.tuxedo
 It also executes `org.apache.commons.pool2.impl.LinkedBlockingDeque.pollFirst` inside `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.borrowSession`, always in TIME_WAITING.
 
 The thread goes steadily from 3288 ms at 01:57 to 7141 ms cpu time. This means going from 3 seconds to 7 seconds in more than 1 hour and 6 minutes.
+
+We'll also take a look into thread 185, as it doesn't ever enter the BLOCKED state.
+
+<img src="..\data\interpreted\diagrams\thread_lifetime_nl95v_185_functions.svg"/>
+<img src="..\data\interpreted\diagrams\thread_lifetime_nl95v_185_cpu.svg"/>
+<img src="..\data\interpreted\diagrams\thread_lifetime_nl95v_185_cpu_since_last.svg"/>
+
+It seems to share the same behavior, indicating that the BLOCKED state in these types of threads is not relevant.
+
+## Threads that call a function
+
+### callServiceGeneric
+
+<img src="..\data\interpreted\diagrams\thread_that_call_callServiceGeneric.svg"/>
+<img src="..\data\interpreted\diagrams\thread_that_call_callServiceGeneric_filtered_status.svg"/>
+
+We can see that, in nl95v, 103 distinct threads call `callServiceGeneric` on `waitOnBfuf`, with 17 threads ever being with the BLOCKED status.
 
 ## Evolution of cpu since last per thread category
 
@@ -603,3 +620,53 @@ The problem of contetion seems to exist here:
 <img src="..\data\interpreted\diagrams\evol_of_status_funs_of_tomcat.svg"/>
 
 While most TOMCAT threads are TIMED_WAITING are running `java.util.concurrent.LinkedBlockingQueue.poll`, there exists for example a spike in nl95v of TIMED_WAiting running `borrowSession` at 02:21, going up to 78. In the next minute, the execution is normal, but something to note is that `callServiceGeneric` never rises that high, looking like it is capped. This would create delays in users receiving responses.
+
+
+### Contention zoom in
+
+Zooming in close to the spike of `borrowSession` at 02:21 in nl95v,
+
+<img src="..\data\interpreted\diagrams\evol_of_status_funs_of_tomcat_zoomed_21.svg"/>
+
+In nl95v:
+
+At 02:20, we have:
+- `java.util.concurrent.LinkedBlockingQueue.poll` TIMED_WAITING: 82, threads waiting for an http request
+- `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.callServiceGeneric` TIMED_WAITING: 12, threads waiting for Tuxedo response
+- `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.borrowSession` TIMED_WAITING : 9, threads waiting for session to process tuxedo request
+
+
+At 02:21, we have:
+- `java.util.concurrent.LinkedBlockingQueue.poll` TIMED_WAITING: 13, threads waiting for an http request
+- `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.callServiceGeneric` TIMED_WAITING: 12, threads waiting for Tuxedo response
+- `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.borrowSession` TIMED_WAITING : 78, threads waiting for session to process tuxedo request
+
+At 02:22, we have:
+- `java.util.concurrent.LinkedBlockingQueue.poll` TIMED_WAITING: 84, threads waiting for an http request
+- `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.callServiceGeneric` TIMED_WAITING: 12, threads waiting for Tuxedo response
+- `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.borrowSession` TIMED_WAITING : 7, threads waiting for session to process tuxedo request
+
+One weird thing to note is that sl494 probably should jave show the same behavior, but it did not. Even so, that are other examples where both services have this kind of spike close to eachother, and both show this cap of `com.crossjointest.cbs.tuxedo.service.TuxedoTransaction.callServiceGeneric` waiting.
+
+Another possibility must be considered. Are TIMEOUTS happening?
+
+
+### BLOCKED `callServiceGeneric` threads
+
+Here we can see in nl95v wich threads ever reach "BLOCKED" status, which are 17 in nl95v and 11 in sl494. The number 17 is close to a lot of numbers that appear in this study, but has the number in sl949 is vastly different, it does not seem to mean anything. Beyond that, this state is rare for tomcat threads, appearing 2 times at most in the threads it appears. This means that the reason it may not appear in any other thread is because it is a state that is quickly solved. IT also appears at different times in every thread it appears, indicating that it probably is not correlated with anything.
+
+<img src="..\data\interpreted\diagrams\thread_that_call_callServiceGeneric_filtered_status_blocked.svg"/>
+
+One of those threads was one of the studied, with this tacktrace at 02:15:
+
+	"http-nio-7012-exec-16" #183 daemon prio=5 os_prio=0 cpu=4864.98ms elapsed=5014.46s tid=0x00007f013400d800 nid=0x6b2 in 	Object.wait()  [0x00007f016e5c3000]
+	   java.lang.Thread.State: BLOCKED (on object monitor)
+		at bea.jolt.IOBuf.waitOnBuf(IOBuf.java:119)
+		- waiting to re-lock in wait() <0x00000000b5716e58> (a bea.jolt.IOBuf)
+		at bea.jolt.NwHdlr.send(NwHdlr.java:1571)
+		at bea.jolt.NwHdlr.send(NwHdlr.java:1439)
+		at bea.jolt.CMgr.send(CMgr.java:215)
+		at bea.jolt.JoltSession.send(JoltSession.java:561)
+		at bea.jolt.JoltRemoteService.call(JoltRemoteService.java:332)
+		at bea.jolt.JoltRemoteService.call(JoltRemoteService.java:283)
+		...

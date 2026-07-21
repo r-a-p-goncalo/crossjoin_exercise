@@ -39,6 +39,10 @@ The reported problem is that the service, while dealing with the morning load, i
 
 There were thread dumps taken, for the two services, accross a time interval, essentialy one per minute per service.
 
+This could be a problem of a resource bing capped at too low of a value in relation to the number of requests the services can receive. There could also be a problem of timeouts before requests manage to get the session objects they need.
+
+As performance seems to be gained after a restart, it could be possible that there is a resource that is not being properly "freed". In this case, not only the number of threads with access to that resource would be capped, but also, if those threads are not terminated, other threads will never see the resource.
+
 ## Expected behavior
 
 What is the behavior of the system if it was healthy?
